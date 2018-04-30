@@ -7,7 +7,7 @@
 		<xs:complexType>
 			<xs:sequence>
 				<xs:element name="FileNameRoot" type="xs:string"/>
-				<xs:element name="MaxEventCount" type="xs:unsignedInt"/>
+				<xs:element name="MaxEventCount" type="xs:unsignedInt" minOccurs="0"/>
 			</xs:sequence>
 		</xs:complexType>
 	</xs:element>
