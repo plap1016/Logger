@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="Log.cpp" />
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="configuration.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="configuration-pimpl.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="configuration-pskel.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="Logger_Dispatcher.cpp" />
+    <ClCompile Include="gzstream.cpp" />
+    <ClCompile Include="PSubLocal.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Log.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="targetver.h" />
+    <ClInclude Include="configuration.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="configuration-pimpl.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="configuration-pskel.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="Logger_Dispatcher.h" />
+    <ClInclude Include="gzstream.h" />
+    <ClInclude Include="zlib.h" />
+    <ClInclude Include="zconf.h" />
+    <ClInclude Include="PSubLocal.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Config">
+      <UniqueIdentifier>{10119ddb-f096-431d-a46e-0e7c7a34f384}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="configuration.xsd" />
+  </ItemGroup>
+</Project>
