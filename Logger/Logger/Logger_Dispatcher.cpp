@@ -41,9 +41,17 @@ Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& p
 
 Logger_Dispatcher::~Logger_Dispatcher()
 {
-	getMsgDispatcher().stop();
+	try
+	{
+		getMsgDispatcher().stop();
+		m_iosvc.stop();
 
-	m_iosvc.stop();
+		m_sockThread.join();
+	}
+	catch (const std::exception& ex)
+	{
+		LOG(LL_Warning, LC_Logger, "ERROR: The following errors were found:\r\n" << ex.what());
+	}
 }
 
 //void Logger_Dispatcher::start()
