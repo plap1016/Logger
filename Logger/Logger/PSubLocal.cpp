@@ -141,7 +141,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 
 	m_strm << tdiff.count() << " " << m.ttl << " 0 " << PubSub::toString(m.subject) << " " << base64 << std::endl;
 
-	if (++m_evtCount >= m_disp.cfg().MaxEventCount())
+	if (m_disp.cfg().MaxEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxEventCount())
 	{
 		initNewFile();
 		m_evtCount = 0;
