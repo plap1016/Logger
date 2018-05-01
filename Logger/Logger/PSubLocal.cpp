@@ -46,18 +46,23 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 		LOG(LL_Warning, LC_Local, "Lost local connection to pSub bus");
 
 		if (error != BA::error::operation_aborted)
+		{
 			if (m_reconectMsg)
 				m_reconectMsg->cancelMsg();
-		m_reconectMsg = enqueueWithDelay<ReconnectEvt>(1000);
+			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(1000);
+		}
 	}
 }
 
 void PSubLocal::OnConnect(const boost::system::error_code& error)
 {
-	if (error)
+	if (error == BA::error::already_connected)
+		LOG(LL_Info, LC_Local, "OnConnect error already_connected");
+	else if (error)
 		enqueueWithDelay<ReconnectEvt>(1000);
 	else
 	{
+		LOG(LL_Info, LC_Local, "Connected to pSub bus");
 		subscribe({ "*" });
 
 		m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
@@ -81,7 +86,9 @@ bool PSubLocal::initNewFile(void)
 #endif
 
 	std::stringstream fname;
-	fname << m_disp.cfg().FileNameRoot() << "_" << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - nowsec).count() << ".zrec";
+	fname << m_disp.cfg().LogPath() << "/" << m_disp.cfg().FileNameRoot() << "_"
+		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - nowsec).count()
+		<< ".zrec";
 
 	m_strm.open(fname.str().c_str());
 	if (m_strm.good())
@@ -95,6 +102,8 @@ void PSubLocal::start()
 	LOG(LL_Debug, LC_Local, "start");
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 	m_running = true;
+
+	m_sock.close();
 
 	if (initNewFile())
 		m_sock.async_connect(m_disp.pSubAddr(), boost::bind(&PSubLocal::OnConnect, this, BA::placeholders::error));

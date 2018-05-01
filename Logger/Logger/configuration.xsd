@@ -6,6 +6,7 @@
 	<xs:element name="Logger">
 		<xs:complexType>
 			<xs:sequence>
+				<xs:element name="LogPath" type="xs:string"/>
 				<xs:element name="FileNameRoot" type="xs:string"/>
 				<xs:element name="MaxEventCount" type="xs:unsignedInt" minOccurs="0"/>
 			</xs:sequence>

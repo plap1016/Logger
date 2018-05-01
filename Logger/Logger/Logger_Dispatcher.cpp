@@ -98,13 +98,16 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 
 	try
 	{
-		d.parse(cfgstrm);
-		m_cfg = s.post();
+		if (!haveCfg)
+		{
+			d.parse(cfgstrm);
+			m_cfg = s.post();
 
-		m_local.reset(new PSubLocal(*this));
-		m_local->start();
+			m_local.reset(new PSubLocal(*this));
+			m_local->start();
 
-		haveCfg = true;
+			haveCfg = true;
+		}
 	}
 	catch (xml_schema::parser_exception& ex)
 	{
@@ -300,7 +303,8 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgAliveDeferred>()
 {
-	sendMsg(PubSub::Message(PUB_ALIVE, PUB_STATUS_TTL, g_version));
+	if (!haveCfg)
+		sendMsg(PubSub::Message(PUB_ALIVE, PUB_STATUS_TTL, g_version));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()

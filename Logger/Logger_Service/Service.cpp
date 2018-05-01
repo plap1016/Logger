@@ -82,7 +82,7 @@ void _tmain(int argc, TCHAR *argv[])
 	if (!g_exe)
 	{
 #if defined(_DEBUG) && defined(WIN32)
-		Sleep(20000);
+		Sleep(10000);
 #endif
 		SERVICE_TABLE_ENTRY ste[] =
 		{{TEXT(""),(LPSERVICE_MAIN_FUNCTION)Service_Main}, {NULL, NULL}};
