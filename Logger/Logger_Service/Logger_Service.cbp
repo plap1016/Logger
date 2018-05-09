@@ -31,8 +31,25 @@
 		<Compiler>
 			<Add option="-Wall" />
 			<Add option="-fexceptions" />
+			<Add option="-std=c++11" />
+			<Add directory="$(PROJECTDIR)/.." />
+			<Add directory="$(WORKSPACEDIR)" />
+			<Add directory="$(WORKSPACEDIR)/Common" />
+			<Add directory="$(WORKSPACEDIR)/Messages" />
+			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde" />
 		</Compiler>
-		<Unit filename="main.cpp" />
+		<Linker>
+			<Add library="Logger" />
+			<Add library="pSubClientLib" />
+			<Add library="Task" />
+			<Add library="xsde" />
+			<Add library="z" />
+			<Add library="pthread" />
+			<Add library="boost_system" />
+			<Add directory="$(WORKSPACEDIR)/$(TARGET_NAME)" />
+			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde/xsde" />
+		</Linker>
+		<Unit filename="Daemon.cpp" />
 		<Extensions>
 			<code_completion />
 			<debugger />

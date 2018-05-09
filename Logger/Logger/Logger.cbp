@@ -34,9 +34,25 @@
 				</Linker>
 			</Target>
 		</Build>
-		<Unit filename="main.c">
-			<Option compilerVar="CC" />
+		<Compiler>
+			<Add option="-std=c++11" />
+			<Add directory="$(WORKSPACEDIR)" />
+			<Add directory="$(WORKSPACEDIR)/Common" />
+			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde" />
+		</Compiler>
+		<Unit filename="Log.cpp" />
+		<Unit filename="Log.h" />
+		<Unit filename="Logger_Dispatcher.cpp" />
+		<Unit filename="Logger_Dispatcher.h" />
+		<Unit filename="PSubLocal.cpp" />
+		<Unit filename="PSubLocal.h" />
+		<Unit filename="configuration.xsd">
+			<Option compile="1" />
 		</Unit>
+		<Unit filename="gzstream.cpp" />
+		<Unit filename="gzstream.h" />
+		<Unit filename="stdafx.h" />
+		<Unit filename="targetver.h" />
 		<Extensions>
 			<code_completion />
 			<debugger />
