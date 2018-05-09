@@ -1,4 +1,6 @@
+#ifdef WIN32
 #include "stdafx.h"
+#endif // WIN32
 #include "Log.h"
 
 #include <cstring>

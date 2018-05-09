@@ -1,4 +1,6 @@
+#ifdef WIN32
 #include "stdafx.h"
+#endif // WIN32
 #include "Logger_Dispatcher.h"
 #include "configuration-pimpl.hxx"
 #include "PSubLocal.h"
