@@ -74,10 +74,10 @@ bool PSubLocal::initNewFile(void)
 	if (m_strm.good())
 		m_strm.close();
 
-	m_time_marker = std::chrono::steady_clock::now();
-	std::chrono::steady_clock::time_point nowsec = std::chrono::time_point_cast<std::chrono::seconds>(m_time_marker);
+	std::chrono::system_clock::time_point mk = std::chrono::system_clock::now();
+	std::chrono::system_clock::time_point nowsec = std::chrono::time_point_cast<std::chrono::seconds>(mk);
 
-	std::time_t tt = std::chrono::steady_clock::to_time_t(m_time_marker);
+	std::time_t tt = std::chrono::system_clock::to_time_t(mk);
 #if defined(WIN32)
 	tm t;
 	gmtime_s(&t, &tt);
@@ -87,13 +87,14 @@ bool PSubLocal::initNewFile(void)
 
 	std::stringstream fname;
 	fname << m_disp.cfg().LogPath() << "/" << m_disp.cfg().FileNameRoot() << "_"
-		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - nowsec).count()
+		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count()
 		<< ".zrec";
 
 	m_strm.open(fname.str().c_str());
 	if (m_strm.good())
-		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - nowsec).count() << std::endl;
+		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
+	m_time_marker = std::chrono::steady_clock::now();
 	return m_strm.good();
 }
 
