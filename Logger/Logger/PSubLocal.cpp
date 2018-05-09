@@ -18,8 +18,8 @@ PSubLocal::PSubLocal(Logger_Dispatcher& disp)
 	: Task::TTask<PSubLocal>(disp.getMsgDispatcher())
 	, Logging::LogClient(disp)
 	, m_disp(disp)
-	, m_running(false)
 	, m_sock(disp.iosvc())
+	, m_running(false)
 {
 }
 
@@ -141,7 +141,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	std::chrono::milliseconds tdiff = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_time_marker);
 	m_time_marker = now;
 
-	typedef transform_width< binary_from_base64<std::string::const_iterator>, 8, 6 > it_binary_t;
+	//typedef transform_width< binary_from_base64<std::string::const_iterator>, 8, 6 > it_binary_t;
 	typedef base64_from_binary<transform_width<std::string::const_iterator, 6, 8> > it_base64_t;
 
 	// Encode
