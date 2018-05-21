@@ -195,7 +195,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 		subscribe(SUB_DIE);
 #endif
 		if (!haveCfg)
-			sendMsg(PubSub::Message(PUB_ALIVE, PUB_STATUS_TTL, g_version));
+			sendMsg(PubSub::Message(PUB_ALIVE, g_version, PUB_STATUS_TTL));
 
 		if (m_here)
 			m_here->cancelMsg();
@@ -300,7 +300,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgAliveDeferred>()
 {
-	sendMsg(PubSub::Message(PUB_ALIVE, PUB_STATUS_TTL, g_version));
+	sendMsg(PubSub::Message(PUB_ALIVE, g_version, PUB_STATUS_TTL));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
