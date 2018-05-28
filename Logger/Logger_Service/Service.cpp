@@ -29,6 +29,7 @@ Logger_Dispatcher* g_svc = nullptr;
 
 bool parseCmdLine(int argc, TCHAR *argv[]);
 void usage();
+BOOL WINAPI consoleHandler(DWORD signal);
 BOOL IsInstalled();
 BOOL Install(const std::wstring& cfgf, const std::wstring& logf, wchar_t loglvl);
 BOOL Uninstall();
@@ -62,19 +63,29 @@ void _tmain(int argc, TCHAR *argv[])
 	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "************************************ STARTUP ****************************************");
 	LOGWTO(plogfile, Logging::LL_Info, Logging::LC_Service, _T("***** Executable: ") << argv[0]);
 	LOGWTO(plogfile, Logging::LL_Info, Logging::LC_Service, _T("***** Process ID: ") << GetCurrentProcessId());
-	DWORD versz(0);
-	versz = GetFileVersionInfoSize(argv[0], NULL);
-	void* verbuff = new char[versz];
-	GetFileVersionInfo(argv[0], 0, versz, verbuff);
-	VS_FIXEDFILEINFO* verp(NULL);
-	unsigned int verplen(0);
-	VerQueryValue(verbuff, _T("\\"), (void**)&verp, &verplen);
-	std::ostringstream ver;
-	ver << (verp->dwFileVersionMS >> 16) << '.' << (verp->dwFileVersionMS & 0xFFFF) << '.' << (verp->dwFileVersionLS >> 16) << '.' << (verp->dwFileVersionLS & 0xFFFF);
-	g_version = ver.str();
-	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "***** Version: " << g_version);
+
+	TCHAR acCurImg[MAX_PATH];
+	DWORD dwDummy;
+	GetModuleFileName(NULL, acCurImg, MAX_PATH);
+	DWORD versz = GetFileVersionInfoSize(acCurImg, &dwDummy);
+	if (versz == 0)
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "***** Error retrieving version: " << errorStr(GetLastError()));
+	else
+	{
+		void* verbuff = new char[versz];
+		GetFileVersionInfo(argv[0], 0, versz, verbuff);
+		VS_FIXEDFILEINFO* verp(NULL);
+		unsigned int verplen(0);
+		if (VerQueryValue(verbuff, L"\\", (void**)&verp, &verplen))
+		{
+			std::ostringstream ver;
+			ver << (verp->dwFileVersionMS >> 16) << '.' << (verp->dwFileVersionMS & 0xFFFF) << '.' << (verp->dwFileVersionLS >> 16) << '.' << (verp->dwFileVersionLS & 0xFFFF);
+			g_version = ver.str();
+			LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "***** Version: " << g_version);
+		}
+		delete[] verbuff;
+	}
 	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "*************************************************************************************");
-	delete[] verbuff;
 
 	for (int x = 1; x < argc; ++x)
 		LOGWTO(plogfile, Logging::LL_Info, Logging::LC_Service, _T("***** Command line parameter: ") << argv[x]);
@@ -97,11 +108,15 @@ void _tmain(int argc, TCHAR *argv[])
 	{
 		// Running as normal exe
 		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Starting as executable");
+
 		// Create the event to signal the service to stop.
 		hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 #if defined(_DEBUG) && defined(WIN32)
 		g_exitEvent = hStopEvent;
 #endif
+
+		if (!SetConsoleCtrlHandler(consoleHandler, TRUE))
+			LOGTO(plogfile, Logging::LL_Warning, Logging::LC_Service, "Failed to set control handler");
 
 		{
 			Logger_Dispatcher svc(logfile, (LPCSTR)bstr_t(g_psubaddr.c_str()));
@@ -529,6 +544,17 @@ BOOL Uninstall()
 	lstrcpy(szBuf,  _T("Could not delete service"));
 	MessageBox(NULL, szBuf, lpszServiceName, MB_OK);
 	return FALSE;
+}
+
+BOOL WINAPI consoleHandler(DWORD signal)
+{
+	if (signal == CTRL_C_EVENT)
+	{
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Ctrl-C detected");
+		SetEvent(hStopEvent);
+	}
+
+	return TRUE;
 }
 
 std::string errorStr(DWORD errCode)
