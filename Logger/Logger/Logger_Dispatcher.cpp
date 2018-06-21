@@ -27,7 +27,8 @@ HANDLE g_exitEvent;
 
 extern std::string g_version;
 
-const uint32_t PUB_STATUS_TTL = 60000;
+const int32_t TTL_LONGTIME = -43200000; // up to 12 hrs or until superceded
+const int32_t TTL_STATUS = 60000;
 
 Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr)
 	: Task::TActiveTask<Logger_Dispatcher>(2)
@@ -45,6 +46,9 @@ Logger_Dispatcher::~Logger_Dispatcher()
 {
 	try
 	{
+		LOG(LL_Debug, LC_Logger, "stop");
+		sendMsg(PubSub::Message(PUB_DEAD, TTL_LONGTIME));
+
 		getMsgDispatcher().stop();
 		m_iosvc.stop();
 
@@ -200,7 +204,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 		subscribe(SUB_DIE);
 #endif
 		if (!haveCfg)
-			sendMsg(PubSub::Message(PUB_ALIVE, g_version, PUB_STATUS_TTL));
+			sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
 		if (m_here)
 			m_here->cancelMsg();
@@ -306,7 +310,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgAliveDeferred>()
 {
 	if (!haveCfg)
-	sendMsg(PubSub::Message(PUB_ALIVE, g_version, PUB_STATUS_TTL));
+	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
