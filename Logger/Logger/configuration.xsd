@@ -5,11 +5,12 @@
 >
 	<xs:element name="Logger">
 		<xs:complexType>
-			<xs:sequence>
+			<xs:all>
 				<xs:element name="LogPath" type="xs:string"/>
 				<xs:element name="FileNameRoot" type="xs:string"/>
-				<xs:element name="MaxEventCount" type="xs:unsignedInt" minOccurs="0"/>
-			</xs:sequence>
+				<xs:element name="MaxFileCount" type="xs:unsignedInt"/>
+				<xs:element name="MaxFileEventCount" type="xs:unsignedInt" minOccurs="0"/>
+			</xs:all>
 		</xs:complexType>
 	</xs:element>
 </xs:schema>

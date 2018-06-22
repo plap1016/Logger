@@ -7,10 +7,13 @@
 
 #include <stdint.h>
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <sstream>
+#include <set>
 
 namespace BA = boost::asio;
+namespace BF = boost::filesystem;
 
 using namespace Logging;
 
@@ -63,6 +66,8 @@ void PSubLocal::OnConnect(const boost::system::error_code& error)
 	else
 	{
 		LOG(LL_Info, LC_Local, "Connected to pSub bus");
+
+		initNewFile();
 		subscribe({ "*" });
 
 		m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
@@ -73,6 +78,29 @@ bool PSubLocal::initNewFile(void)
 {
 	if (m_strm.good())
 		m_strm.close();
+
+	uint32_t fcnt = 0;
+	BF::path p(m_disp.cfg().LogPath());
+	std::set<BF::path> dir;
+	std::string fnroot = m_disp.cfg().FileNameRoot();
+	for (BF::directory_entry d : BF::directory_iterator(p))
+	{
+		std::string droot = d.path().filename().string().substr(0, fnroot.size());
+		if (droot == fnroot)
+		{
+			++fcnt;
+			dir.insert(d);
+		}
+	}
+
+	if (fcnt >= m_disp.cfg().MaxFileCount())
+	{
+		for (uint32_t x = m_disp.cfg().MaxFileCount(); x <= fcnt; ++x)
+		{
+			BF::remove(*dir.begin());
+			dir.erase(dir.begin());
+		}
+	}
 
 	std::chrono::system_clock::time_point mk = std::chrono::system_clock::now();
 	std::chrono::system_clock::time_point nowsec = std::chrono::time_point_cast<std::chrono::seconds>(mk);
@@ -88,7 +116,7 @@ bool PSubLocal::initNewFile(void)
 	std::stringstream fname;
 	fname << m_disp.cfg().LogPath() << "/" << m_disp.cfg().FileNameRoot() << "_"
 		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count()
-		<< ".zrec";
+		<< ".rec.gz";
 
 	m_strm.open(fname.str().c_str());
 	if (m_strm.good())
@@ -105,9 +133,7 @@ void PSubLocal::start()
 	m_running = true;
 
 	m_sock.close();
-
-	if (initNewFile())
-		m_sock.async_connect(m_disp.pSubAddr(), boost::bind(&PSubLocal::OnConnect, this, BA::placeholders::error));
+	m_sock.async_connect(m_disp.pSubAddr(), boost::bind(&PSubLocal::OnConnect, this, BA::placeholders::error));
 }
 
 void PSubLocal::stop()
@@ -151,7 +177,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 
 	m_strm << tdiff.count() << " " << m.ttl << " 0 " << PubSub::toString(m.subject) << " " << base64 << std::endl;
 
-	if (m_disp.cfg().MaxEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxEventCount())
+	if (m_disp.cfg().MaxFileEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxFileEventCount())
 	{
 		initNewFile();
 		m_evtCount = 0;
