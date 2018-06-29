@@ -66,7 +66,7 @@ public:
 
 	void processMsg(const PubSub::Message& m);
 
-	struct evCfgAliveDeferred;
+	struct evCfgDeferred;
 	struct evHereTime;
 	template <typename M> void processEvent();
 
