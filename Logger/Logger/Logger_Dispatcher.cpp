@@ -19,6 +19,7 @@ const PubSub::Subject PUB_HERE{ "Here", "Logger" };
 const PubSub::Subject PUB_DEAD{ "Dead", "Logger" };
 const PubSub::Subject SUB_CFG_ALIVE{ "Alive", "CFG" };
 const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
+const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
 
 #if defined(_DEBUG) && defined(WIN32)
 const PubSub::Subject SUB_DIE{ "Die", "Logger" };
@@ -307,10 +308,10 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 //	}
 //}
 
-template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgAliveDeferred>()
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
 {
 	if (!haveCfg)
-	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
+		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version, 0));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
@@ -339,7 +340,7 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 			// will receive our cached Status/Alive message and serve up our config very soon.
 			// Wait a little before issuing the Status/Alive again.
 
-			m_cfgAliveDeferred = enqueueWithDelay<evCfgAliveDeferred>(3000);
+			m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
 		}
 	}
 	else
