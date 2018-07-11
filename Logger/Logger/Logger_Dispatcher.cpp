@@ -12,6 +12,15 @@
 #include <string>
 #include <sstream>
 
+namespace Logging
+{
+	template <> const char* getLCStr<LC_Task     >() { return "Task    "; }
+	template <> const char* getLCStr<LC_PubSub   >() { return "PubSub  "; }
+	template <> const char* getLCStr<LC_TcpConn  >() { return "TcpConn "; }
+	template <> const char* getLCStr<LC_Local    >() { return "Local   "; }
+	template <> const char* getLCStr<LC_Logger   >() { return "Logger  "; }
+}
+
 using namespace Logging;
 
 const PubSub::Subject PUB_ALIVE{ "Alive", "Logger" };
@@ -20,6 +29,9 @@ const PubSub::Subject PUB_DEAD{ "Dead", "Logger" };
 const PubSub::Subject SUB_CFG_ALIVE{ "Alive", "CFG" };
 const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
 const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
+
+const PubSub::Subject SUB_NEW_FILE{ "Logger", "Newfile" };
+
 
 #if defined(_DEBUG) && defined(WIN32)
 const PubSub::Subject SUB_DIE{ "Die", "Logger" };
@@ -201,6 +213,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 		// Subscribe to stuff
 		subscribe(SUB_CFG);
 		subscribe(SUB_CFG_ALIVE);
+		subscribe(SUB_NEW_FILE);
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
@@ -328,6 +341,8 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 
 	if (PubSub::match(SUB_CFG, m.subject))
 		configure(m.payload);
+	else if (PubSub::match(SUB_NEW_FILE, m.subject))
+		m_local->enqueue<NewfileEvt>();
 #if defined(_DEBUG) && defined(WIN32)
 	else if (PubSub::match(SUB_DIE, m.subject))
 		SetEvent(g_exitEvent);

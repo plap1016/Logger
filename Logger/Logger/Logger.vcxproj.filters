@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="Log.cpp" />
     <ClCompile Include="stdafx.cpp" />
     <ClCompile Include="configuration.cxx">
       <Filter>Config</Filter>
@@ -17,7 +16,6 @@
     <ClCompile Include="PSubLocal.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Log.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="configuration.hxx">

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Log.h"
+#include "Logging/Log.h"
 #include "Task/TTask.h"
 #include "PubSubLib/PubSub.h"
 #include "configuration.hxx"
@@ -12,6 +12,15 @@
 #if defined(_DEBUG) && defined(WIN32)
 extern HANDLE g_exitEvent;
 #endif
+
+namespace Logging
+{
+	const uint32_t LC_Task = 0x0001;
+	const uint32_t LC_PubSub = 0x0002;
+	const uint32_t LC_TcpConn = 0x0004;
+	const uint32_t LC_Local = 0x0008;
+	const uint32_t LC_Logger = 0x0010;
+}
 
 class ConfigMsg;
 class PSubLocal;

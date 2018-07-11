@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Log.h"
+#include "Logging/Log.h"
 #include "gzstream.h"
 
 #include "Task/TTask.h"
@@ -15,6 +15,7 @@
 
 class Logger_Dispatcher;
 class ReconnectEvt;
+class NewfileEvt;
 
 namespace BA = boost::asio;
 

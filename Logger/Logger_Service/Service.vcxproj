@@ -66,7 +66,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -87,7 +87,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

@@ -3,7 +3,7 @@
 
 #include "stdafx.h"
 
-#include "../Logger/Log.h"
+#include "Logging/Log.h"
 #include "../Logger/Logger_Dispatcher.h"
 
 #include <comutil.h>
@@ -14,6 +14,12 @@
 #include <iostream>
 #include <locale>
 #include <codecvt>
+
+namespace Logging
+{
+	const uint32_t LC_Service = 0x0200;
+	template <> const char* getLCStr<LC_Service  >() { return "Service "; }
+}
 
 HANDLE  hStopEvent;
 LPTSTR  lpszServiceName = L"CCM2_Logger";
@@ -578,9 +584,11 @@ bool parseCmdLine(int argc, TCHAR *argv[])
 	bool ret(true), install(false);
 	wchar_t ll(L'i');
 
-	std::wstring logfile = L"CCM_Logger.log";
+	std::wstring logfile = L"./CCM_Logger.log";
 	
 	plogfile->setLogLevel(Logging::LLSet_Info);
+	plogfile->setMaxFiles(5);
+	plogfile->setSizeLimit(0x2800); // 10 Mb
 	for (int x = 1; x < argc; ++x)
 	{
 		if (argv[x][0] == '-' || argv[x][0] == '/')

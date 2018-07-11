@@ -37,6 +37,11 @@ template <> void PSubLocal::processEvent<ReconnectEvt>(void)
 		start();
 }
 
+template <> void PSubLocal::processEvent<NewfileEvt>(void)
+{
+	initNewFile();
+}
+
 void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
 {
 	if (!error)
