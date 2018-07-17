@@ -222,7 +222,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 
 		if (m_here)
 			m_here->cancelMsg();
-		m_here = enqueueWithDelay<evHereTime>(2000);
+		m_here = enqueueWithDelay<evHereTime>(2000, true);
 
 		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
@@ -324,13 +324,12 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
 {
 	if (!haveCfg)
-		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version, 0));
+		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
 {
-	sendMsg(PubSub::Message(PUB_HERE, 0));
-	m_here = enqueueWithDelay<evHereTime>(2000);
+	sendMsg(PubSub::Message(PUB_HERE));
 }
 
 void Logger_Dispatcher::processMsg(const PubSub::Message& m)
