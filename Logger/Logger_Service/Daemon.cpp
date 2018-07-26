@@ -9,12 +9,17 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "Logger/Log.h"
+#include "Logging/Log.h"
 #include "Logger/Logger_Dispatcher.h"
 #include "Task/lock.h"
 
 #define DAEMON_NAME "loggerd"
 
+namespace Logging
+{
+	const uint32_t LC_Service = 0x0200;
+	template <> const char* getLCStr<LC_Service  >() { return "Service "; }
+}
 
 void daemonShutdown();
 void signal_handler(int sig);
