@@ -41,6 +41,7 @@
 		<Linker>
 			<Add library="Logger" />
 			<Add library="pSubClientLib" />
+			<Add library="Logging" />
 			<Add library="Task" />
 			<Add library="xsde" />
 			<Add library="z" />
