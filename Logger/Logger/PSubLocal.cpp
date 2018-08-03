@@ -44,7 +44,7 @@ template <> void PSubLocal::processEvent<NewfileEvt>(void)
 
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
-	m_strm.flush();
+	m_strm.rdbuf()->syncflush();
 }
 
 void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
