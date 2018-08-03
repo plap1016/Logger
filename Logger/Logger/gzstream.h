@@ -66,6 +66,7 @@ public:
     gzstreambuf* open( const char* name, int open_mode);
     gzstreambuf* close();
     ~gzstreambuf() { close(); }
+	int syncflush();
 
     virtual int     overflow( int c = EOF);
     virtual int     underflow();

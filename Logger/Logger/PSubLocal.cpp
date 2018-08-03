@@ -37,6 +37,16 @@ template <> void PSubLocal::processEvent<ReconnectEvt>(void)
 		start();
 }
 
+template <> void PSubLocal::processEvent<NewfileEvt>(void)
+{
+	initNewFile();
+}
+
+template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
+{
+	m_strm.rdbuf()->syncflush();
+}
+
 void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
 {
 	if (!error)
@@ -62,7 +72,15 @@ void PSubLocal::OnConnect(const boost::system::error_code& error)
 	if (error == BA::error::already_connected)
 		LOG(LL_Info, LC_Local, "OnConnect error already_connected");
 	else if (error)
+	{
+		if (m_flushMsg)
+		{
+			m_flushMsg->cancelMsg();
+			m_flushMsg.reset();
+		}
+
 		enqueueWithDelay<ReconnectEvt>(1000);
+	}
 	else
 	{
 		LOG(LL_Info, LC_Local, "Connected to pSub bus");
@@ -123,6 +141,10 @@ bool PSubLocal::initNewFile(void)
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
 	m_time_marker = std::chrono::steady_clock::now();
+
+	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
+		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
+
 	return m_strm.good();
 }
 

@@ -9,6 +9,7 @@
 				<xs:element name="LogPath" type="xs:string"/>
 				<xs:element name="FileNameRoot" type="xs:string"/>
 				<xs:element name="MaxFileCount" type="xs:unsignedInt"/>
+				<xs:element name="FlushSec" type="xs:unsignedInt" minOccurs="0"/>
 				<xs:element name="MaxFileEventCount" type="xs:unsignedInt" minOccurs="0"/>
 			</xs:all>
 		</xs:complexType>

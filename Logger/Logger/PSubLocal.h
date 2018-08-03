@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Log.h"
+#include "Logging/Log.h"
 #include "gzstream.h"
 
 #include "Task/TTask.h"
@@ -15,6 +15,7 @@
 
 class Logger_Dispatcher;
 class ReconnectEvt;
+class NewfileEvt;
 
 namespace BA = boost::asio;
 
@@ -43,6 +44,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	};
 
 	Task::MsgDelayMsgPtr m_reconectMsg;
+	Task::MsgDelayMsgPtr m_flushMsg;
 	
 	void OnConnect(const boost::system::error_code& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
@@ -58,6 +60,7 @@ public:
 	void start();
 	void stop();
 
+	struct FlushEvt;
 	template <typename T> void processEvent(void);
 
 	void processMsg(const PubSub::Message& m);

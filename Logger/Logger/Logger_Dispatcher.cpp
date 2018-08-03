@@ -12,6 +12,15 @@
 #include <string>
 #include <sstream>
 
+namespace Logging
+{
+	template <> const char* getLCStr<LC_Task     >() { return "Task    "; }
+	template <> const char* getLCStr<LC_PubSub   >() { return "PubSub  "; }
+	template <> const char* getLCStr<LC_TcpConn  >() { return "TcpConn "; }
+	template <> const char* getLCStr<LC_Local    >() { return "Local   "; }
+	template <> const char* getLCStr<LC_Logger   >() { return "Logger  "; }
+}
+
 using namespace Logging;
 
 const PubSub::Subject PUB_ALIVE{ "Alive", "Logger" };
@@ -20,6 +29,9 @@ const PubSub::Subject PUB_DEAD{ "Dead", "Logger" };
 const PubSub::Subject SUB_CFG_ALIVE{ "Alive", "CFG" };
 const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
 const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
+
+const PubSub::Subject SUB_NEW_FILE{ "Logger", "Newfile" };
+
 
 #if defined(_DEBUG) && defined(WIN32)
 const PubSub::Subject SUB_DIE{ "Die", "Logger" };
@@ -201,6 +213,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 		// Subscribe to stuff
 		subscribe(SUB_CFG);
 		subscribe(SUB_CFG_ALIVE);
+		subscribe(SUB_NEW_FILE);
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
@@ -209,7 +222,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 
 		if (m_here)
 			m_here->cancelMsg();
-		m_here = enqueueWithDelay<evHereTime>(2000);
+		m_here = enqueueWithDelay<evHereTime>(2000, true);
 
 		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
@@ -311,13 +324,12 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
 {
 	if (!haveCfg)
-		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version, 0));
+		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
 {
-	sendMsg(PubSub::Message(PUB_HERE, 0));
-	m_here = enqueueWithDelay<evHereTime>(2000);
+	sendMsg(PubSub::Message(PUB_HERE));
 }
 
 void Logger_Dispatcher::processMsg(const PubSub::Message& m)
@@ -328,6 +340,8 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 
 	if (PubSub::match(SUB_CFG, m.subject))
 		configure(m.payload);
+	else if (PubSub::match(SUB_NEW_FILE, m.subject))
+		m_local->enqueue<NewfileEvt>();
 #if defined(_DEBUG) && defined(WIN32)
 	else if (PubSub::match(SUB_DIE, m.subject))
 		SetEvent(g_exitEvent);

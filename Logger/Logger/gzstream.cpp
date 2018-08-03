@@ -134,6 +134,10 @@ int gzstreambuf::sync() {
     return 0;
 }
 
+int gzstreambuf::syncflush() {
+    return gzflush( file, Z_SYNC_FLUSH );
+}
+
 // --------------------------------------
 // class gzstreambase:
 // --------------------------------------
