@@ -332,6 +332,11 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>(
 	sendMsg(PubSub::Message(PUB_HERE));
 }
 
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFile>()
+{
+	m_local->enqueue<NewfileEvt>();
+}
+
 void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 {
 	std::string str;

@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
 		syslog(LOG_INFO, "Daemon starting up");
 
 		/* Deamonize */
-		daemonize("/tmp/", "/tmp/psubpclientd.pid");
+		daemonize("/tmp/", "/tmp/loggerd.pid");
 
 		syslog(LOG_INFO, "Daemon running");
 	}
