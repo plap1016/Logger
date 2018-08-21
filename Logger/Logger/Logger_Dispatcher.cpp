@@ -217,8 +217,11 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
+		
+		sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
+
 		if (!haveCfg)
-			sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
+			m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
 
 		if (m_here)
 			m_here->cancelMsg();
@@ -324,7 +327,10 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
 {
 	if (!haveCfg)
+	{
 		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version));
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
+	}
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
@@ -351,17 +357,6 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 	else if (PubSub::match(SUB_DIE, m.subject))
 		SetEvent(g_exitEvent);
 #endif
-	else if (PubSub::match(SUB_CFG_ALIVE, m.subject))
-	{
-		if (!haveCfg)
-		{
-			// There's a good chance that the system is starting and that the config service
-			// will receive our cached Status/Alive message and serve up our config very soon.
-			// Wait a little before issuing the Status/Alive again.
-
-			m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
-		}
-	}
 	else
 		// Unknown message - weird
 		;
