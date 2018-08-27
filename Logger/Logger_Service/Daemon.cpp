@@ -222,6 +222,8 @@ bool parseCmdLine(int argc, char *argv[])
 	g_name += argv[1];
 
 	plogfile->setLogLevel(Logging::LLSet_Info);
+	plogfile->setMaxFiles(5);
+	plogfile->setSizeLimit(0x00A00000); // 10 Mb
 	for (int x = 2; x < argc; ++x)
 	{
 		if (argv[x][0] == L'-')
@@ -238,14 +240,14 @@ bool parseCmdLine(int argc, char *argv[])
 				case 'd':
 					plogfile->setLogLevel(Logging::LLSet_Debug);
 					break;
+				case 'm':
+					plogfile->setLogLevel(Logging::LLSet_Dump);
+					break;
 				case 't':
 					plogfile->setLogLevel(Logging::LLSet_Trace);
 					break;
 				case 'T':
 					plogfile->setLogLevel(Logging::LLSet_Test);
-					break;
-				case 'm':
-					plogfile->setLogLevel(Logging::LLSet_Dump);
 					break;
 				case 'e': // run as exe
 					g_exe = true;
