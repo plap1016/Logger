@@ -668,8 +668,8 @@ bool parseCmdLine(int argc, TCHAR *argv[])
 void usage()
 {
 	using namespace std;
-	cout << "IO_Service - Central Management Computer IO Service" << endl;
-	cout << "Usage: IO_Service [OPTIONS]" << endl;
+	cout << "Logger_Service - Central Management Computer PubSub bus Logging service" << endl;
+	cout << "Usage: Logger_Service [OPTIONS]" << endl;
 	cout << "Options:" << endl;
 	cout << "\t-h - help. Print this message and exit" << endl;
 	cout << "\t     If this option is used any subsequent options are ignored" << endl;
