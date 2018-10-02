@@ -54,8 +54,8 @@ void  SetTheServiceStatus(DWORD dwCurrentState,DWORD dwWin32ExitCode,
 #define SVCCMD_LLSET_TRACE		0x00000085  // 133
 #define SVCCMD_LLSET_TEST		0x00000086  // 134
 
-#define SVCCMD_TEST_OFF			0x00000087  // 135
-#define SVCCMD_TEST_ON			0x00000088  // 136
+#define SVCCMD_NEW_FILE			0x00000087  // 135
+//#define SVCCMD_TEST_ON			0x00000088  // 136
 
 // Entry point for service. Calls StartServiceCtrlDispatcher
 // and then blocks until the ServiceMain function returns.
@@ -272,14 +272,14 @@ DWORD WINAPI Service_Ctrl(DWORD dwCtrlCode, DWORD dwEventType, LPVOID lpEventDat
 		plogfile->setLogLevel(Logging::LLSet_Test);
 		ret = NO_ERROR;
 		break;
+	case SVCCMD_NEW_FILE: //135
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "SERVICE_CONTROL Test event service suspend");
+		g_svc->enqueue<Logger_Dispatcher::evNewFile>();
+		ret = NO_ERROR;
+		break;
 	//case SVCCMD_TEST_ON: //136
 	//	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "SERVICE_CONTROL Test event service resume");
 	//	g_svc->start();
-	//	ret = NO_ERROR;
-	//	break;
-	//case SVCCMD_TEST_OFF: //135
-	//	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "SERVICE_CONTROL Test event service suspend");
-	//	g_svc->stop();
 	//	ret = NO_ERROR;
 	//	break;
 	default:
@@ -588,7 +588,7 @@ bool parseCmdLine(int argc, TCHAR *argv[])
 	
 	plogfile->setLogLevel(Logging::LLSet_Info);
 	plogfile->setMaxFiles(5);
-	plogfile->setSizeLimit(0x2800); // 10 Mb
+	plogfile->setSizeLimit(0x00A00000); // 10 Mb
 	for (int x = 1; x < argc; ++x)
 	{
 		if (argv[x][0] == '-' || argv[x][0] == '/')
@@ -668,8 +668,8 @@ bool parseCmdLine(int argc, TCHAR *argv[])
 void usage()
 {
 	using namespace std;
-	cout << "IO_Service - Central Management Computer IO Service" << endl;
-	cout << "Usage: IO_Service [OPTIONS]" << endl;
+	cout << "Logger_Service - Central Management Computer PubSub bus Logging service" << endl;
+	cout << "Usage: Logger_Service [OPTIONS]" << endl;
 	cout << "Options:" << endl;
 	cout << "\t-h - help. Print this message and exit" << endl;
 	cout << "\t     If this option is used any subsequent options are ignored" << endl;

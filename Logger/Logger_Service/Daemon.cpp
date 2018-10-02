@@ -29,7 +29,7 @@ bool parseCmdLine(int argc, char *argv[]);
 
 std::string g_psubaddr("127.0.0.1");
 std::string g_version = "1.1.8";
-std::string g_name;
+//std::string g_name;
 bool g_exe(false);
 
 int pidFilehandle;
@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
 		syslog(LOG_INFO, "Daemon starting up");
 
 		/* Deamonize */
-		daemonize("/tmp/", "/tmp/psubpclientd.pid");
+		daemonize("/tmp/", "/tmp/loggerd.pid");
 
 		syslog(LOG_INFO, "Daemon running");
 	}
@@ -211,20 +211,22 @@ bool parseCmdLine(int argc, char *argv[])
 {
 	bool ret(true);
 
-	if (argc < 2 || argv[1][0] == L'-')
+	if (argc < 1)
 	{
 		std::cout << "Invalid command line parameters" << std::endl;
 		usage();
 		return false;
 	}
 
-	g_name = "PSubPClient_";
-	g_name += argv[1];
+	//g_name = "PSubPClient_";
+	//g_name += argv[1];
 
 	plogfile->setLogLevel(Logging::LLSet_Info);
-	for (int x = 2; x < argc; ++x)
+	plogfile->setMaxFiles(5);
+	plogfile->setSizeLimit(0x00A00000); // 10 Mb
+	for (int x = 1; x < argc; ++x)
 	{
-		if (argv[x][0] == L'-')
+		if (argv[x][0] == '-')
 		{
 			// an option
 			int optlen = strlen(argv[x]);
@@ -238,14 +240,14 @@ bool parseCmdLine(int argc, char *argv[])
 				case 'd':
 					plogfile->setLogLevel(Logging::LLSet_Debug);
 					break;
+				case 'm':
+					plogfile->setLogLevel(Logging::LLSet_Dump);
+					break;
 				case 't':
 					plogfile->setLogLevel(Logging::LLSet_Trace);
 					break;
 				case 'T':
 					plogfile->setLogLevel(Logging::LLSet_Test);
-					break;
-				case 'm':
-					plogfile->setLogLevel(Logging::LLSet_Dump);
 					break;
 				case 'e': // run as exe
 					g_exe = true;
@@ -286,7 +288,7 @@ void usage()
 {
 	using namespace std;
 	cout << "loggerd - Central Management Computer PubSub bus Logging service" << endl;
-	cout << "Usage: loggerd <name> [OPTIONS]" << endl;
+	cout << "Usage: loggerd [OPTIONS]" << endl;
 	cout << "Options:" << endl;
 	cout << "\t-h - help. Print this message and exit" << endl;
 	cout << "\t     If this option is used any subsequent options are ignored" << endl;
