@@ -36,6 +36,7 @@
 		</Build>
 		<Compiler>
 			<Add option="-std=c++11" />
+			<Add option="-fPIC" />
 			<Add directory="$(WORKSPACEDIR)" />
 			<Add directory="$(WORKSPACEDIR)/Common" />
 			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde" />
