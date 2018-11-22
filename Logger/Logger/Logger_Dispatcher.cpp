@@ -31,6 +31,7 @@ const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
 const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
 
 const PubSub::Subject SUB_NEW_FILE{ "Logger", "Newfile" };
+const PubSub::Subject SUB_FLUSH_FILE{ "Logger", "Flush" };
 
 
 #if defined(_DEBUG) && defined(WIN32)
@@ -214,6 +215,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 		subscribe(SUB_CFG);
 		subscribe(SUB_CFG_ALIVE);
 		subscribe(SUB_NEW_FILE);
+		subscribe(SUB_FLUSH_FILE);
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
@@ -353,6 +355,8 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 		configure(m.payload);
 	else if (PubSub::match(SUB_NEW_FILE, m.subject))
 		m_local->enqueue<NewfileEvt>();
+	else if (PubSub::match(SUB_FLUSH_FILE, m.subject))
+		m_local->enqueue<PSubLocal::FlushEvt>();
 #if defined(_DEBUG) && defined(WIN32)
 	else if (PubSub::match(SUB_DIE, m.subject))
 		SetEvent(g_exitEvent);
