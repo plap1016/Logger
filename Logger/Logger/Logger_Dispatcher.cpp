@@ -211,6 +211,8 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 	{
 		LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
 
+		m_sockptr->set_option(boost::asio::socket_base::keep_alive(true));
+
 		// Subscribe to stuff
 		subscribe(SUB_CFG);
 		subscribe(SUB_CFG_ALIVE);

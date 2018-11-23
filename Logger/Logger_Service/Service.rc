@@ -61,8 +61,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_AUS
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,1,5,0
- PRODUCTVERSION 1,1,5,0
+ FILEVERSION 1,2,0,0
+ PRODUCTVERSION 1,2,0,0
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -78,12 +78,12 @@ BEGIN
         BLOCK "0c0904b0"
         BEGIN
             VALUE "FileDescription", "pSub Logging Service"
-            VALUE "FileVersion", "1.1.5.0"
+            VALUE "FileVersion", "1.2.0.0"
             VALUE "InternalName", "CCM_IO"
             VALUE "LegalCopyright", "Copyright (C) Trapezegroup Asia Pacific"
             VALUE "OriginalFilename", "Logger_Service.exe"
             VALUE "ProductName", "CCM Logger Service"
-            VALUE "ProductVersion", "1.1.5.0"
+            VALUE "ProductVersion", "1.2.0.0"
         END
     END
     BLOCK "VarFileInfo"
