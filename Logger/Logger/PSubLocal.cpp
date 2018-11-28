@@ -197,7 +197,12 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	std::string base64(it_base64_t(m.payload.begin()), it_base64_t(m.payload.end()));
 	base64.append(writePaddChars, '=');
 
-	m_strm << tdiff.count() << " " << m.ttl << " 0 " << PubSub::toString(m.subject) << " " << base64 << std::endl;
+	m_strm << tdiff.count() << " " << m.age << " " << m.ttl << " ";
+
+	for (uint32_t p : m.postmarks)
+		m_strm << p << " ";
+
+	m_strm << PubSub::toString(m.subject) << " " << base64 << std::endl;
 
 	if (m_disp.cfg().MaxFileEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxFileEventCount())
 	{
