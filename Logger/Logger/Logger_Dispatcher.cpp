@@ -195,6 +195,8 @@ void Logger_Dispatcher::start()
 	else
 		m_sockptr->close();
 
+	m_sockptr->open(boost::asio::ip::tcp::v4());
+	m_sockptr->set_option(boost::asio::socket_base::keep_alive(true));
 	m_sockptr->async_connect(m_pubsubaddr, boost::bind(&Logger_Dispatcher::OnConnect, this, BA::placeholders::error));
 }
 
@@ -210,8 +212,6 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 	else
 	{
 		LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
-
-		m_sockptr->set_option(boost::asio::socket_base::keep_alive(true));
 
 		// Subscribe to stuff
 		subscribe(SUB_CFG);
