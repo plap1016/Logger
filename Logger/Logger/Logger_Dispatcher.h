@@ -78,6 +78,7 @@ public:
 	struct evCfgDeferred;
 	struct evHereTime;
 	struct evNewFile;
+	struct evFlushFile;
 	template <typename M> void processEvent();
 
 };

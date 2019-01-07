@@ -55,6 +55,7 @@ void  SetTheServiceStatus(DWORD dwCurrentState,DWORD dwWin32ExitCode,
 #define SVCCMD_LLSET_TEST		0x00000086  // 134
 
 #define SVCCMD_NEW_FILE			0x00000087  // 135
+#define SVCCMD_FLUSH_FILE		0x00000088  // 136
 //#define SVCCMD_TEST_ON			0x00000088  // 136
 
 // Entry point for service. Calls StartServiceCtrlDispatcher
@@ -273,8 +274,13 @@ DWORD WINAPI Service_Ctrl(DWORD dwCtrlCode, DWORD dwEventType, LPVOID lpEventDat
 		ret = NO_ERROR;
 		break;
 	case SVCCMD_NEW_FILE: //135
-		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "SERVICE_CONTROL Test event service suspend");
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Creating new file due to service control command");
 		g_svc->enqueue<Logger_Dispatcher::evNewFile>();
+		ret = NO_ERROR;
+		break;
+	case SVCCMD_FLUSH_FILE: //136
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Flushing file due to service control command");
+		g_svc->enqueue<Logger_Dispatcher::evFlushFile>();
 		ret = NO_ERROR;
 		break;
 	//case SVCCMD_TEST_ON: //136
