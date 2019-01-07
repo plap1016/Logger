@@ -347,6 +347,11 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFile>()
 	m_local->enqueue<NewfileEvt>();
 }
 
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFlushFile>()
+{
+	m_local->enqueue<PSubLocal::FlushEvt>();
+}
+
 void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 {
 	std::string str;
