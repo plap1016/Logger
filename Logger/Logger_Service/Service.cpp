@@ -695,11 +695,11 @@ void usage()
 	cout << "\t-l <log file> - log. Specifies the log file to produce." << endl;
 	cout << endl;
 	cout << "Multiple options can be grouped together e.g. -de sets logging level to debug and runs as an executable" << endl;
-	cout << "Options that require a value (-l) must be at the end of an option group" << endl;
-	cout << "\te.g.  -el IO_Service.log  will work but" << endl;
-	cout << "\t      -le IO_Service.log  will fail" << endl;
+	cout << "Options that require a value (-l -b) must be at the end of an option group" << endl;
+	cout << "\te.g.  -el Logger_Service.log  will work but" << endl;
+	cout << "\t      -le Logger_Service.log  will fail" << endl;
 	cout << endl;
-	cout << "Multiple option groups can be listed e.g.  -dl IO_Service.log -e" << endl;
+	cout << "Multiple option groups can be listed e.g.  -dl Logger_Service.log -e" << endl;
 	cout << endl;
 	cout << "Note: When setting logging levels the last option listed will" << endl;
 	cout << "override any previously set logging levels" << endl;
