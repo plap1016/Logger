@@ -61,6 +61,9 @@
 				</Linker>
 			</Target>
 		</Build>
+		<VirtualTargets>
+			<Add alias="All" targets="Debug;Release;ARM_Debug;ARM_Release;" />
+		</VirtualTargets>
 		<Compiler>
 			<Add option="-std=c++11" />
 			<Add option="-fPIC" />
