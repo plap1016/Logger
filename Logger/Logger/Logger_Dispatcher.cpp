@@ -239,13 +239,22 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 {
 	if (!error)
 	{
-		processBuffer((char*)readBuff, bytes_transferred);
+		try
+		{
+			processBuffer((char*)readBuff, bytes_transferred);
+		}
+		catch (const std::exception& ex)
+		{
+			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error processing pSub buffer. Read buffers reset");
+			LOG(Logging::LL_Dump, Logging::LC_PubSub, readBuff);
+		}
 		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
 	else
 	{
 		LOG(Logging::LL_Warning, Logging::LC_PubSub, "Lost connection to pSub bus");
 
+		resetPSub();
 		if (m_here)
 		{
 			m_here->cancelMsg();

@@ -51,13 +51,22 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 {
 	if (!error)
 	{
-		processBuffer((char*)readBuff, bytes_transferred);
+		try
+		{
+			processBuffer((char*)readBuff, bytes_transferred);
+		}
+		catch (const std::exception& ex)
+		{
+			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset");
+			LOG(LL_Dump, LC_Local, readBuff);
+		}
 		m_sock.async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
 	else
 	{
 		LOG(LL_Warning, LC_Local, "Lost local connection to pSub bus");
 
+		resetPSub();
 		if (error != BA::error::operation_aborted)
 		{
 			if (m_reconectMsg)
