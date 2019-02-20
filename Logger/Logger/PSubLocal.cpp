@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/bind.hpp>
 #include <string>
 #include <sstream>
 #include <set>

@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <boost/asio.hpp>
+#include <boost/bind.hpp>
 #include <boost/optional.hpp>
 
 #include <string>
