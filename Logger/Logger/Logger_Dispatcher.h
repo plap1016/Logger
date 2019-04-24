@@ -4,6 +4,7 @@
 #include "Task/TTask.h"
 #include "PubSubLib/PubSub.h"
 #include "configuration.hxx"
+#include "syscfg.hxx"
 
 #include <thread>
 #include <memory>
@@ -50,8 +51,13 @@ class Logger_Dispatcher
 	};
 
 	LogConfig::Logger m_cfg;
+	std::vector<std::pair<PubSub::Subject, std::shared_ptr<std::string> > > m_ftpevents;
 	void configure(const std::string& cfgStr);
 	bool haveCfg = false;
+
+	syscfg::Shared m_syscfg;
+	void configSys(const std::string& cfgStr);
+	bool m_haveSysCfg = false;
 
 	Task::MsgDelayMsgPtr m_cfgAliveDeferred;
 	Task::MsgDelayMsgPtr m_here;
@@ -59,6 +65,7 @@ class Logger_Dispatcher
 	std::shared_ptr<PSubLocal> m_local;
 
 	void start();
+	void ftpUpload();
 	void OnConnect(const boost::system::error_code& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 

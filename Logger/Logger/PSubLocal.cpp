@@ -146,7 +146,8 @@ bool PSubLocal::initNewFile(void)
 		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count()
 		<< ".rec.gz";
 
-	m_strm.open(fname.str().c_str());
+	m_fname = fname.str();
+	m_strm.open(m_fname.c_str());
 	if (m_strm.good())
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
