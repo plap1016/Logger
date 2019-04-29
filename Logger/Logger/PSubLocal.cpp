@@ -43,6 +43,12 @@ template <> void PSubLocal::processEvent<NewfileEvt>(void)
 	initNewFile();
 }
 
+template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
+{
+	initNewFile();
+	m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
+}
+
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
 	m_strm.rdbuf()->syncflush();
@@ -156,6 +162,7 @@ bool PSubLocal::initNewFile(void)
 	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
 		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
 
+	LOG(LL_Info, LC_Local, "Created new log file " << m_fname);
 	return m_strm.good();
 }
 

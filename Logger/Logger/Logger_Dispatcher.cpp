@@ -11,7 +11,6 @@
 #include <boost/bind.hpp>
 #include <boost/optional.hpp>
 #include <boost/filesystem.hpp>
-#include <curl/curl.h>
 
 #include <string>
 #include <sstream>
@@ -212,7 +211,7 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
-		
+
 		sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
 		if (!haveCfg)
@@ -278,6 +277,11 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFile>()
 	m_local->enqueue<NewfileEvt>();
 }
 
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFileCreated>()
+{
+	m_newFileComplete.set();
+}
+
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFlushFile>()
 {
 	m_local->enqueue<PSubLocal::FlushEvt>();
@@ -288,6 +292,7 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 	std::string str;
 	LOG(Logging::LL_Debug, Logging::LC_Logger, "Received msg " << PubSub::toString(m.subject, str));
 
+	std::unique_lock<std::recursive_mutex> s(m_dispLock);
 
 	if (PubSub::match(SUB_CFG, m.subject))
 		configure(m.payload);
@@ -305,17 +310,21 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 	{
 		for (const std::pair<PubSub::Subject, std::shared_ptr<std::string> >& e : m_ftpevents)
 			if (PubSub::match(e.first, m.subject) && (!e.second || m.payload == *e.second))
+			{
 				// do ftp upload
+				LOG(Logging::LL_Info, Logging::LC_Logger, "Upload trigger \"" << PubSub::toString(m.subject) << "\" detected");
 				ftpUpload();
+				break;
+			}
 	}
 }
-
-int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
 
 void Logger_Dispatcher::ftpUpload()
 {
 	// synchronous call
-	m_local->processEvent<NewfileEvt>();
+	m_local->enqueue<NewfileEvtSync>();
+	m_newFileComplete.wait();
+	BF::path currFile(m_local->currentFileName());
 
 	CURL *curlhandle = NULL;
 	curl_global_init(CURL_GLOBAL_ALL);
@@ -327,12 +336,19 @@ void Logger_Dispatcher::ftpUpload()
 	std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
 	for (BF::directory_entry d : BF::directory_iterator(p))
 	{
+		if (d.path().filename().empty())
+			continue;
+
 		std::string droot = d.path().filename().string().substr(0, fnroot.size());
-		if (droot == fnroot && d.path().filename().string() != m_local->currentFileName())
+		if (droot == fnroot && d.path().filename().string() != currFile.filename().string())
 		{
 			std::string destfname = destpath + d.path().filename().string();
+			LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
 			if (upload(curlhandle, destfname, d.path().string(), 0, 3))
+			{
+				LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
 				BF::remove(d.path());
+			}
 		}
 	}
 
@@ -357,6 +373,34 @@ size_t getcontentlengthfunc(char *ptr, size_t size, size_t nmemb, void *stream)
 	return size * nmemb;
 }
 
+curl_off_t Logger_Dispatcher::sftpGetRemoteFileSize(const char *i_remoteFile)
+{
+	CURLcode result = CURLE_GOT_NOTHING;
+	curl_off_t remoteFileSizeByte = -1;
+	CURL *curlHandlePtr = NULL;
+
+	curlHandlePtr = curl_easy_init();
+	curl_easy_setopt(curlHandlePtr, CURLOPT_VERBOSE, 1L);
+
+	curl_easy_setopt(curlHandlePtr, CURLOPT_URL, i_remoteFile);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_NOBODY, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_HEADER, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_FILETIME, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_NOPROGRESS, 1);
+
+	result = curl_easy_perform(curlHandlePtr);
+	if (CURLE_OK == result)
+	{
+		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remoteFileSizeByte);
+		if (result)
+			return -1;
+		LOG(Logging::LL_Debug, Logging::LC_Logger, "Remote file size = " << remoteFileSizeByte);
+	}
+	curl_easy_cleanup(curlHandlePtr);
+
+	return remoteFileSizeByte;
+}
+
 /* discard downloaded data */
 size_t discardfunc(char *ptr, size_t size, size_t nmemb, void *stream)
 {
@@ -375,94 +419,141 @@ size_t readfunc(char *ptr, size_t size, size_t nmemb, void *stream)
 
 	f->read(ptr, size * nmemb);
 
-	size_t ret = (size_t)f->gcount();
-	fprintf(stderr, "%d\n", ret);
-	return ret;
+	return (size_t)f->gcount();
 }
 
-
-int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+bool Logger_Dispatcher::sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath)
 {
 	std::ifstream f;
-	long uploaded_len = 0;
-	CURLcode r = CURLE_GOT_NOTHING;
-	char errbuf[CURL_ERROR_SIZE];
-	int c;
+	CURLcode result = CURLE_GOT_NOTHING;
+
+	curl_off_t remoteFileSizeByte = sftpGetRemoteFileSize(remotepath.c_str());
 
 	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
 	if (!f.good())
 	{
 		perror(NULL);
-		return 0;
+		return false;
 	}
 
-	curl_easy_setopt(curlhandle, CURLOPT_ERRORBUFFER, errbuf);
+	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 0L);
 	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
-
 	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
-
-	if (timeout)
-		curl_easy_setopt(curlhandle, CURLOPT_FTP_RESPONSE_TIMEOUT, timeout);
-
-	curl_easy_setopt(curlhandle, CURLOPT_HEADERFUNCTION, getcontentlengthfunc);
-	curl_easy_setopt(curlhandle, CURLOPT_HEADERDATA, &uploaded_len);
-
-	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
-
 	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
+	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
 	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
-
-	/* disable passive mode */
-	curl_easy_setopt(curlhandle, CURLOPT_FTPPORT, "-");
 	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
 
-	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 1L);
-
-	for (c = 0; (r != CURLE_OK) && (c < tries); c++)
+	if (remoteFileSizeByte > 0)
 	{
-		/* are we resuming? */
-		if (c)
-		{ /* yes */
-			/* determine the length of the file already written */
-
-			/*
-			* With NOBODY and NOHEADER, libcurl will issue a SIZE
-			* command, but the only way to retrieve the result is
-			* to parse the returned Content-Length header. Thus,
-			* getcontentlengthfunc(). We need discardfunc() above
-			* because HEADER will dump the headers to stdout
-			* without it.
-			*/
-			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 1L);
-			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 1L);
-
-			r = curl_easy_perform(curlhandle);
-			if (r != CURLE_OK)
-				continue;
-
-			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 0L);
-			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 0L);
-
-			f.seekg(uploaded_len, std::ios_base::beg);
-			//fseek(f, uploaded_len, SEEK_SET);
-
-			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
-		}
-		else
-		{ /* no */
-			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
-		}
-
-		r = curl_easy_perform(curlhandle);
+		f.seekg(remoteFileSizeByte, std::ios_base::beg);
+		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
 	}
+	else
+		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
+
+	result = curl_easy_perform(curlhandle);
 
 	f.close();
 
-	if (r == CURLE_OK)
-		return 1;
-	else
-	{
-		fprintf(stderr, "%s\n", curl_easy_strerror(r));
-		return 0;
-	}
+	if (result != CURLE_OK)
+		LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload fail - " << curl_easy_strerror(result));
+
+	return result == CURLE_OK;
 }
+
+bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+{
+	long uploaded_len = 0;
+	int c;
+
+	for (c = 0; c < tries; ++c)
+		if (sftpResumeUpload(curlhandle, remotepath, localpath))
+			break;
+
+	return c < tries;
+}
+
+//int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+//{
+//	std::ifstream f;
+//	long uploaded_len = 0;
+//	CURLcode r = CURLE_GOT_NOTHING;
+//	int c;
+//
+//	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
+//	if (!f.good())
+//	{
+//		perror(NULL);
+//		return 0;
+//	}
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
+//
+//	if (timeout)
+//		curl_easy_setopt(curlhandle, CURLOPT_FTP_RESPONSE_TIMEOUT, timeout);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_HEADERFUNCTION, getcontentlengthfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_HEADERDATA, &uploaded_len);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
+//
+//	/* disable passive mode */
+//	curl_easy_setopt(curlhandle, CURLOPT_FTPPORT, "-");
+//	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 1L);
+//
+//	for (c = 0; (r != CURLE_OK) && (c < tries); c++)
+//	{
+//		/* are we resuming? */
+//		if (c)
+//		{ /* yes */
+//			/* determine the length of the file already written */
+//
+//			/*
+//			* With NOBODY and NOHEADER, libcurl will issue a SIZE
+//			* command, but the only way to retrieve the result is
+//			* to parse the returned Content-Length header. Thus,
+//			* getcontentlengthfunc(). We need discardfunc() above
+//			* because HEADER will dump the headers to stdout
+//			* without it.
+//			*/
+//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 1L);
+//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 1L);
+//
+//			r = curl_easy_perform(curlhandle);
+//			if (r != CURLE_OK)
+//				continue;
+//
+//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 0L);
+//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 0L);
+//
+//			f.seekg(uploaded_len, std::ios_base::beg);
+//			//fseek(f, uploaded_len, SEEK_SET);
+//
+//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
+//		}
+//		else
+//		{ /* no */
+//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
+//		}
+//
+//		r = curl_easy_perform(curlhandle);
+//	}
+//
+//	f.close();
+//
+//	if (r == CURLE_OK)
+//		return 1;
+//	else
+//	{
+//		fprintf(stderr, "%s\n", curl_easy_strerror(r));
+//		return 0;
+//	}
+//}

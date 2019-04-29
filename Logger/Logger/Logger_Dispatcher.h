@@ -9,6 +9,7 @@
 #include <thread>
 #include <memory>
 #include <boost/asio.hpp>
+#include <curl/curl.h>
 
 #if defined(_DEBUG) && defined(WIN32)
 extern HANDLE g_exitEvent;
@@ -50,6 +51,7 @@ class Logger_Dispatcher
 			m_sockptr->close();
 	};
 
+	std::recursive_mutex m_dispLock;
 	LogConfig::Logger m_cfg;
 	std::vector<std::pair<PubSub::Subject, std::shared_ptr<std::string> > > m_ftpevents;
 	void configure(const std::string& cfgStr);
@@ -59,6 +61,8 @@ class Logger_Dispatcher
 	void configSys(const std::string& cfgStr);
 	bool m_haveSysCfg = false;
 
+	VEvent m_newFileComplete;
+
 	Task::MsgDelayMsgPtr m_cfgAliveDeferred;
 	Task::MsgDelayMsgPtr m_here;
 
@@ -66,6 +70,10 @@ class Logger_Dispatcher
 
 	void start();
 	void ftpUpload();
+	bool upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
+	bool sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath);
+	curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
+
 	void OnConnect(const boost::system::error_code& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
@@ -85,6 +93,7 @@ public:
 	struct evCfgDeferred;
 	struct evHereTime;
 	struct evNewFile;
+	struct evNewFileCreated;
 	struct evFlushFile;
 	template <typename M> void processEvent();
 

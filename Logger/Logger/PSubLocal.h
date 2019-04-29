@@ -16,6 +16,7 @@
 class Logger_Dispatcher;
 class ReconnectEvt;
 class NewfileEvt;
+class NewfileEvtSync;
 
 namespace BA = boost::asio;
 
