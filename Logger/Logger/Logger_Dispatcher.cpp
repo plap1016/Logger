@@ -330,7 +330,6 @@ void Logger_Dispatcher::ftpUpload()
 	curl_global_init(CURL_GLOBAL_ALL);
 	curlhandle = curl_easy_init();
 
-	uint32_t fcnt = 0;
 	BF::path p(cfg().LogPath());
 	std::string fnroot = cfg().FileNameRoot();
 	std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
@@ -391,7 +390,13 @@ curl_off_t Logger_Dispatcher::sftpGetRemoteFileSize(const char *i_remoteFile)
 	result = curl_easy_perform(curlHandlePtr);
 	if (CURLE_OK == result)
 	{
+#if LIBCURL_VERSION_NUM >= 0x073700
 		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remoteFileSizeByte);
+#else
+		double fs = 0.0;
+		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &fs);
+		remoteFileSizeByte = (curl_off_t)fs;
+#endif
 		if (result)
 			return -1;
 		LOG(Logging::LL_Debug, Logging::LC_Logger, "Remote file size = " << remoteFileSizeByte);
@@ -464,9 +469,7 @@ bool Logger_Dispatcher::sftpResumeUpload(CURL *curlhandle, const std::string& re
 
 bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
 {
-	long uploaded_len = 0;
 	int c;
-
 	for (c = 0; c < tries; ++c)
 		if (sftpResumeUpload(curlhandle, remotepath, localpath))
 			break;

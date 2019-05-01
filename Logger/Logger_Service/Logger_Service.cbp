@@ -83,6 +83,7 @@
 			<Add library="z" />
 			<Add library="boost_filesystem" />
 			<Add library="boost_system" />
+			<Add library="curl" />
 			<Add directory="$(WORKSPACEDIR)/$(TARGET_NAME)" />
 			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde/xsde" />
 		</Linker>

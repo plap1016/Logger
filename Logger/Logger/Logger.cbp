@@ -69,8 +69,12 @@
 			<Add option="-fPIC" />
 			<Add directory="$(WORKSPACEDIR)" />
 			<Add directory="$(WORKSPACEDIR)/Common" />
+			<Add directory="$(WORKSPACEDIR)/Messages" />
 			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde" />
 		</Compiler>
+		<Unit filename="../../Messages/syscfg.xsd">
+			<Option compile="1" />
+		</Unit>
 		<Unit filename="Logger_Dispatcher.cpp" />
 		<Unit filename="Logger_Dispatcher.h" />
 		<Unit filename="PSubLocal.cpp" />
