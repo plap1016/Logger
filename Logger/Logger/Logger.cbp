@@ -40,9 +40,11 @@
 				<Option type="2" />
 				<Option compiler="arm-elf-gcc" />
 				<Option createDefFile="1" />
+				<Option projectIncludeDirsRelation="2" />
 				<Compiler>
 					<Add option="-Wall" />
 					<Add option="-g" />
+					<Add directory="/home/andrew/local/curl_arm/include" />
 				</Compiler>
 			</Target>
 			<Target title="ARM_Release">
@@ -52,9 +54,11 @@
 				<Option type="2" />
 				<Option compiler="arm-elf-gcc" />
 				<Option createDefFile="1" />
+				<Option projectIncludeDirsRelation="2" />
 				<Compiler>
 					<Add option="-O2" />
 					<Add option="-Wall" />
+					<Add directory="/home/andrew/local/curl_arm/include" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
