@@ -42,17 +42,17 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\zlib;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\_deps\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\zlib;$(IncludePath)</IncludePath>
+    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\_deps\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;CURL_STATICLIB;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)Common</AdditionalIncludeDirectories>
     </ClCompile>
@@ -68,7 +68,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;CURL_STATICLIB;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)Common</AdditionalIncludeDirectories>
     </ClCompile>
@@ -87,6 +87,9 @@
     <ClInclude Include="Logger_Dispatcher.h" />
     <ClInclude Include="PSubLocal.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="syscfg-pimpl.hxx" />
+    <ClInclude Include="syscfg-pskel.hxx" />
+    <ClInclude Include="syscfg.hxx" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="zconf.h" />
     <ClInclude Include="zlib.h" />
@@ -111,6 +114,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="syscfg-pimpl.cxx" />
+    <ClCompile Include="syscfg-pskel.cxx" />
+    <ClCompile Include="syscfg.cxx" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="configuration.xsd">
@@ -127,6 +133,14 @@
     <ProjectReference Include="..\..\Common\Task\Task.vcxproj">
       <Project>{9d497386-b07f-437f-8180-e1d3428a52e9}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\Messages\syscfg.xsd">
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">xsde.exe cxx-hybrid --no-long-long --generate-parser --generate-typeinfo --generate-clone --root-element-all --generate-aggregate --show-sloc --cxx-prologue *="#include \"stdafx.h\"" %(Identity)</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">xsde.exe cxx-hybrid --no-long-long --generate-parser --generate-typeinfo --generate-clone --root-element-all --generate-aggregate --show-sloc --cxx-prologue *="#include \"stdafx.h\"" %(Identity)</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(Filename).hxx;%(Filename).cxx;%(Filename)-pskel.hxx;%(Filename)-pskel.cxx;%(Filename)-pimpl.hxx;%(Filename)-pimpl.cxx;%(Outputs)</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">%(Filename).hxx;%(Filename).cxx;%(Filename)-pskel.hxx;%(Filename)-pskel.cxx;%(Filename)-pimpl.hxx;%(Filename)-pimpl.cxx;%(Outputs)</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

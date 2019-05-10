@@ -16,6 +16,7 @@
 class Logger_Dispatcher;
 class ReconnectEvt;
 class NewfileEvt;
+class NewfileEvtSync;
 
 namespace BA = boost::asio;
 
@@ -30,6 +31,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 
 	std::recursive_mutex m_lk;
 	ogzstream m_strm;
+	std::string m_fname;
 	std::chrono::steady_clock::time_point m_time_marker;
 
 	BA::ip::tcp::socket m_sock;
@@ -59,6 +61,8 @@ public:
 
 	void start();
 	void stop();
+
+	const std::string& currentFileName() { return m_fname; }
 
 	struct FlushEvt;
 	template <typename T> void processEvent(void);

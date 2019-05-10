@@ -45,18 +45,18 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\zlib;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProjectDir);$(SolutionDir)$(Configuration)\;C:\local\boost_1_56_0\stage\lib;C:\local\zlib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\_deps\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir);$(SolutionDir)$(Configuration)\;C:\local\boost_1_56_0\stage\lib;C:\local\_deps\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\zlib;$(IncludePath)</IncludePath>
-    <LibraryPath>$(ProjectDir);$(SolutionDir)$(Configuration)\;C:\local\boost_1_56_0\stage\lib;C:\local\zlib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir);C:\local\boost_1_56_0;C:\local\_deps\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir);$(SolutionDir)$(Configuration)\;C:\local\boost_1_56_0\stage\lib;C:\local\_deps\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;CURL_STATICLIB;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -66,7 +66,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;libcurl.lib;libssh2_a.lib;zlibstat.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -79,7 +79,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
-      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;ZLIB_WINAPI;CURL_STATICLIB;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -87,7 +87,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;libcurl.lib;libssh2_a.lib;zlibstat.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
