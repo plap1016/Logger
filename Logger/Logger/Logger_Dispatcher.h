@@ -53,7 +53,6 @@ class Logger_Dispatcher
 
 	std::recursive_mutex m_dispLock;
 	LogConfig::Logger m_cfg;
-	std::vector<std::pair<PubSub::Subject, std::shared_ptr<std::string> > > m_ftpevents;
 	void configure(const std::string& cfgStr);
 	bool haveCfg = false;
 
@@ -73,6 +72,7 @@ class Logger_Dispatcher
 	bool upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
 	bool sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath);
 	curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
+	bool matchEvent(const LogConfig::event_string_t& ev, const std::string& payload);
 
 	void OnConnect(const boost::system::error_code& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);

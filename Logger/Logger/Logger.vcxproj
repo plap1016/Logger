@@ -130,6 +130,9 @@
     <ProjectReference Include="..\..\Common\PubSubLib\PubSubLib.vcxproj">
       <Project>{83e69238-56ee-42bf-9255-fba049495b84}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\..\Common\pugixml\pugixml.vcxproj">
+      <Project>{64d2fd3e-1d3e-4ab2-a1cf-4f061272f2e5}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\Common\Task\Task.vcxproj">
       <Project>{9d497386-b07f-437f-8180-e1d3428a52e9}</Project>
     </ProjectReference>
