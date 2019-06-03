@@ -515,6 +515,8 @@ bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const st
 			case pugi::xpath_type_none:// Unknown type (query failed to compile)
 			default:
 				LOG(Logging::LL_Warning, Logging::LC_Logger, "Xpath for event " << ev << " not valid");
+				found = false;
+				break;
 			}
 		}
 		catch (const pugi::xpath_exception& ex)
