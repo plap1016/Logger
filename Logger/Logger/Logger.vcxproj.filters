@@ -14,6 +14,15 @@
     <ClCompile Include="Logger_Dispatcher.cpp" />
     <ClCompile Include="gzstream.cpp" />
     <ClCompile Include="PSubLocal.cpp" />
+    <ClCompile Include="syscfg.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="syscfg-pimpl.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="syscfg-pskel.cxx">
+      <Filter>Config</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -32,6 +41,15 @@
     <ClInclude Include="zlib.h" />
     <ClInclude Include="zconf.h" />
     <ClInclude Include="PSubLocal.h" />
+    <ClInclude Include="syscfg.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="syscfg-pimpl.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="syscfg-pskel.hxx">
+      <Filter>Config</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Config">
@@ -40,5 +58,6 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="configuration.xsd" />
+    <CustomBuild Include="..\..\Messages\syscfg.xsd" />
   </ItemGroup>
 </Project>

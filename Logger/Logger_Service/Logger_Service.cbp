@@ -32,14 +32,14 @@
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="arm-elf-gcc" />
+				<Option projectIncludeDirsRelation="2" />
 				<Option projectLibDirsRelation="2" />
 				<Compiler>
 					<Add option="-g" />
+					<Add directory="/home/andrew/local/curl_arm/include" />
 				</Compiler>
 				<Linker>
-					<Add directory="/home/andrew/local/boost_arm/lib" />
 					<Add directory="/home/andrew/local/xsde_arm" />
-					<Add directory="/home/andrew/local/zlib_arm" />
 				</Linker>
 			</Target>
 			<Target title="ARM_Release">
@@ -47,15 +47,15 @@
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="arm-elf-gcc" />
+				<Option projectIncludeDirsRelation="2" />
 				<Option projectLibDirsRelation="2" />
 				<Compiler>
 					<Add option="-O2" />
+					<Add directory="/home/andrew/local/curl_arm/include" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
-					<Add directory="/home/andrew/local/boost_arm/lib" />
 					<Add directory="/home/andrew/local/xsde_arm" />
-					<Add directory="/home/andrew/local/zlib_arm" />
 				</Linker>
 			</Target>
 		</Build>
@@ -78,11 +78,13 @@
 			<Add library="pSubClientLib" />
 			<Add library="Logging" />
 			<Add library="Task" />
+			<Add library="pugixml" />
 			<Add library="xsde" />
 			<Add library="pthread" />
 			<Add library="z" />
 			<Add library="boost_filesystem" />
 			<Add library="boost_system" />
+			<Add library="curl" />
 			<Add directory="$(WORKSPACEDIR)/$(TARGET_NAME)" />
 			<Add directory="/home/andrew/progs/xsde-3.2.0-x86_64-linux-gnu/libxsde/xsde" />
 		</Linker>

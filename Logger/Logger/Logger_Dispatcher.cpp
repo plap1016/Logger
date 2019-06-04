@@ -3,15 +3,21 @@
 #endif // WIN32
 #include "Logger_Dispatcher.h"
 #include "configuration-pimpl.hxx"
+#include "syscfg-pimpl.hxx"
 #include "PSubLocal.h"
+#include "pugixml/pugixml.hpp"
 
 #include <stdint.h>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/optional.hpp>
+#include <boost/filesystem.hpp>
 
 #include <string>
 #include <sstream>
+#include <set>
+#include <cstdio>
+#include <regex>
 
 namespace Logging
 {
@@ -29,7 +35,9 @@ const PubSub::Subject PUB_HERE{ "Here", "Logger" };
 const PubSub::Subject PUB_DEAD{ "Dead", "Logger" };
 const PubSub::Subject SUB_CFG_ALIVE{ "Alive", "CFG" };
 const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
+const PubSub::Subject SUB_SHARED_CFG{ "CFG", "Shared" };
 const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
+const PubSub::Subject PUB_SHARED_CFG_REQUEST{ "CFG", "Request", "Shared" };
 
 const PubSub::Subject SUB_NEW_FILE{ "Logger", "Newfile" };
 const PubSub::Subject SUB_FLUSH_FILE{ "Logger", "Flush" };
@@ -75,39 +83,6 @@ Logger_Dispatcher::~Logger_Dispatcher()
 	}
 }
 
-//void Logger_Dispatcher::start()
-//{
-//	LOG(LL_Debug, LC_Logger, "start");
-//	if (!sockThread)
-//		sockThread = new std::thread(std::bind(&Logger_Dispatcher::socketThread, this));
-//
-//	if (!getMsgDispatcher().started())
-//		getMsgDispatcher().start();
-//}
-//
-//void Logger_Dispatcher::stop()
-//{
-//	LOG(LL_Debug, LC_Logger, "stop");
-//	sendMsg(PubSub::Message(PUB_DEAD, PUB_STATUS_TTL));
-//
-//	if (m_here)
-//	{
-//		m_here->cancelMsg();
-//		m_here.reset();
-//	}
-//
-//	while (getMsgDispatcher().started())
-//		getMsgDispatcher().stop();
-//
-//	m_exitEvt.setAll();
-//	if (sockThread)
-//	{
-//		sockThread->join();
-//		delete sockThread;
-//		sockThread = nullptr;
-//	}
-//}
-
 void Logger_Dispatcher::configure(const std::string& cfgStr)
 {
 	LogConfig::Logger_paggr s;
@@ -122,10 +97,19 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 		if (!haveCfg)
 		{
 			d.parse(cfgstrm);
-			m_cfg = s.post();
+
+			//if (m_cfg.FtpUpload_present())
+			//	for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+			//		unsubscribe(PubSub::parseSubject(e));
+
+			s.post()->_copy(m_cfg);
 
 			m_local.reset(new PSubLocal(*this));
 			m_local->start();
+
+			if (m_cfg.FtpUpload_present())
+				for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+					subscribe(PubSub::parseSubject(e));
 
 			haveCfg = true;
 		}
@@ -144,35 +128,37 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 	}
 }
 
-//template <typename MutableBufferSequence>
-//std::size_t readWithTimeout(boost::asio::ip::tcp::socket& s, const MutableBufferSequence& buffers, const boost::asio::deadline_timer::duration_type& expiry_time)
-//{
-//	boost::optional<boost::system::error_code> timer_result;
-//	boost::asio::deadline_timer timer(s.get_io_service());
-//	timer.expires_from_now(expiry_time);
-//	timer.async_wait([&timer_result](const boost::system::error_code& error) { timer_result.reset(error); });
-//
-//	boost::optional<boost::system::error_code> read_result;
-//	boost::optional<std::size_t> read_size_result;
-//	s.async_read_some(buffers, [&read_result, &read_size_result](const boost::system::error_code& error, size_t sz) { read_result.reset(error); read_size_result.reset(sz); });
-//
-//	s.get_io_service().reset();
-//	while (s.get_io_service().run_one())
-//	{
-//		if (read_result)
-//			timer.cancel();
-//		else if (timer_result)
-//			s.cancel();
-//	}
-//
-//	if (!*timer_result)
-//		return 0;
-//
-//	if (*read_result)
-//		throw boost::system::system_error(*read_result);
-//
-//	return *read_size_result;
-//}
+void Logger_Dispatcher::configSys(const std::string& cfgStr)
+{
+	syscfg::Shared_paggr cfg_p;
+	xml_schema::document_pimpl d(cfg_p.root_parser(), cfg_p.root_name());
+
+	std::stringstream cfgStrm(cfgStr);
+
+	cfg_p.pre();
+
+	try
+	{
+		d.parse(cfgStrm);
+		m_syscfg = cfg_p.post();
+
+		m_haveSysCfg = true;
+
+	}
+	catch (xml_schema::parser_exception& ex)
+	{
+		PubSub::Message err;
+		err.subject = { "Error", "Logger", "Config", "Shared" };
+		err.ttl = TTL_STATUS;
+		std::stringstream s;
+		s << ex.what() << ": " << ex.text() << ". line: " << ex.line() << " column: " << ex.column();
+		err.payload = s.str();
+
+		LOG(Logging::LL_Warning, Logging::LC_Logger, "SHARED CONFIG ERROR: " << err.payload);
+
+		sendMsg(err);
+	}
+}
 
 void Logger_Dispatcher::socketThread()
 {
@@ -218,13 +204,13 @@ void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
 
 		// Subscribe to stuff
 		subscribe(SUB_CFG);
-		subscribe(SUB_CFG_ALIVE);
+		subscribe(SUB_SHARED_CFG);
 		subscribe(SUB_NEW_FILE);
 		subscribe(SUB_FLUSH_FILE);
 #if defined(_DEBUG) && defined(WIN32)
 		subscribe(SUB_DIE);
 #endif
-		
+
 		sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
 		if (!haveCfg)
@@ -248,7 +234,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 		}
 		catch (const std::exception& ex)
 		{
-			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error processing pSub buffer. Read buffers reset");
+			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error " << ex.what() << " processing pSub buffer. Read buffers reset");
 			LOG(Logging::LL_Dump, Logging::LC_PubSub, readBuff);
 		}
 		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
@@ -267,86 +253,17 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 	}
 }
 
-//void Logger_Dispatcher::socketThread()
-//{
-//	sockptr.reset(new boost::asio::ip::tcp::socket(m_iosvc));
-//
-//	boost::system::error_code error = boost::asio::error::connection_refused;
-//
-//	try
-//	{
-//
-//		while (true)
-//		{
-//			if (m_here)
-//			{
-//				// Disconnected - cancel Here timer
-//				m_here->cancelMsg();
-//				m_here.reset();
-//			}
-//
-//			for (; error; std::this_thread::sleep_for(std::chrono::milliseconds(200)))
-//			{
-//				if (m_exitEvt.timedwait(0))
-//					return;
-//
-//				sockptr->close();
-//				sockptr->connect(m_pubsubaddr, error);
-//			}
-//
-//			LOG(LL_Info, LC_PubSub, "Connected to pSub bus");
-//
-//			// Subscribe to stuff
-//			subscribe(SUB_CFG);
-//			subscribe(SUB_CFG_ALIVE);
-//#if defined(_DEBUG) && defined(WIN32)
-//			subscribe(SUB_DIE);
-//#endif
-//
-//			sendMsg(PubSub::Message(PUB_ALIVE, PUB_STATUS_TTL, g_version));
-//
-//			m_here = enqueueWithDelay<evHereTime>(2000);
-//
-//			for (;;)
-//			{
-//				if (m_exitEvt.timedwait(0))
-//				{
-//					LOG(LL_Info, LC_PubSub, "Detected pSub thread exit event");
-//					return;
-//				}
-//
-//				char buff[1024];
-//
-//				try
-//				{
-//					size_t len = readWithTimeout(*sockptr, boost::asio::buffer(buff), boost::asio::deadline_timer::duration_type(boost::posix_time::seconds(1)));
-//
-//					if (len > 0)
-//						processBuffer(buff, len);
-//				}
-//				catch (const boost::system::system_error& ex)
-//				{
-//					error = ex.code();
-//					break;
-//				}
-//			}
-//			LOG(LL_Warning, LC_PubSub, "Lost connection to pSub bus");
-//		}
-//	}
-//	catch (const std::exception& ex)
-//	{
-//		LOG(LL_Severe, LC_Logger, ex.what());
-//		throw ex;
-//	}
-//}
-
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
 {
 	if (!haveCfg)
-	{
 		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version));
+
+	if (!m_haveSysCfg)
+		sendMsg(PubSub::Message(PUB_SHARED_CFG_REQUEST, 0));
+
+	if (!(haveCfg && m_haveSysCfg))
 		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
-	}
+
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
@@ -359,6 +276,11 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFile>()
 	m_local->enqueue<NewfileEvt>();
 }
 
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFileCreated>()
+{
+	m_newFileComplete.set();
+}
+
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFlushFile>()
 {
 	m_local->enqueue<PSubLocal::FlushEvt>();
@@ -369,9 +291,12 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 	std::string str;
 	LOG(Logging::LL_Debug, Logging::LC_Logger, "Received msg " << PubSub::toString(m.subject, str));
 
+	std::unique_lock<std::recursive_mutex> s(m_dispLock);
 
 	if (PubSub::match(SUB_CFG, m.subject))
 		configure(m.payload);
+	if (PubSub::match(SUB_SHARED_CFG, m.subject))
+		configSys(m.payload);
 	else if (PubSub::match(SUB_NEW_FILE, m.subject))
 		m_local->enqueue<NewfileEvt>();
 	else if (PubSub::match(SUB_FLUSH_FILE, m.subject))
@@ -381,6 +306,316 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 		SetEvent(g_exitEvent);
 #endif
 	else
-		// Unknown message - weird
-		;
+	{
+		if (m_cfg.FtpUpload_present())
+			for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+				if (PubSub::match(PubSub::parseSubject(e), m.subject) && matchEvent(e, m.payload))
+				{
+					// do ftp upload
+					LOG(Logging::LL_Info, Logging::LC_Logger, "Upload trigger \"" << PubSub::toString(m.subject) << "\" detected");
+					ftpUpload();
+					break;
+				}
+	}
 }
+
+void Logger_Dispatcher::ftpUpload()
+{
+	// synchronous call
+	m_local->enqueue<NewfileEvtSync>();
+	m_newFileComplete.wait();
+	BF::path currFile(m_local->currentFileName());
+
+	CURL *curlhandle = NULL;
+	curl_global_init(CURL_GLOBAL_ALL);
+	curlhandle = curl_easy_init();
+
+	BF::path p(cfg().LogPath());
+	std::string fnroot = cfg().FileNameRoot();
+	std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
+	for (BF::directory_entry d : BF::directory_iterator(p))
+	{
+		if (d.path().filename().empty())
+			continue;
+
+		std::string droot = d.path().filename().string().substr(0, fnroot.size());
+		if (droot == fnroot && d.path().filename().string() != currFile.filename().string())
+		{
+			std::string destfname = destpath + d.path().filename().string();
+			LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
+			if (upload(curlhandle, destfname, d.path().string(), 0, 3))
+			{
+				LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
+				BF::remove(d.path());
+			}
+		}
+	}
+
+	curl_easy_cleanup(curlhandle);
+	curl_global_cleanup();
+}
+
+/* parse headers for Content-Length */
+size_t getcontentlengthfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+{
+	int r;
+	long len = 0;
+
+#ifdef WIN32
+	r = sscanf_s(ptr, "Content-Length: %ld\n", &len);
+#else
+	r = std::sscanf(ptr, "Content-Length: %ld\n", &len);
+#endif
+	if (r)
+		*((long *)stream) = len;
+
+	return size * nmemb;
+}
+
+curl_off_t Logger_Dispatcher::sftpGetRemoteFileSize(const char *i_remoteFile)
+{
+	CURLcode result = CURLE_GOT_NOTHING;
+	curl_off_t remoteFileSizeByte = -1;
+	CURL *curlHandlePtr = NULL;
+
+	curlHandlePtr = curl_easy_init();
+	curl_easy_setopt(curlHandlePtr, CURLOPT_VERBOSE, 1L);
+
+	curl_easy_setopt(curlHandlePtr, CURLOPT_URL, i_remoteFile);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_NOBODY, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_HEADER, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_FILETIME, 1);
+	curl_easy_setopt(curlHandlePtr, CURLOPT_NOPROGRESS, 1);
+
+	result = curl_easy_perform(curlHandlePtr);
+	if (CURLE_OK == result)
+	{
+#if LIBCURL_VERSION_NUM >= 0x073700
+		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remoteFileSizeByte);
+#else
+		double fs = 0.0;
+		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &fs);
+		remoteFileSizeByte = (curl_off_t)fs;
+#endif
+		if (result)
+			return -1;
+		LOG(Logging::LL_Debug, Logging::LC_Logger, "Remote file size = " << remoteFileSizeByte);
+	}
+	curl_easy_cleanup(curlHandlePtr);
+
+	return remoteFileSizeByte;
+}
+
+/* discard downloaded data */
+size_t discardfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+{
+	(void)ptr;
+	(void)stream;
+	return size * nmemb;
+}
+
+/* read data to upload */
+size_t readfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+{
+	std::ifstream* f = (std::ifstream*)stream;
+
+	if (!*f)
+		return CURL_READFUNC_ABORT;
+
+	f->read(ptr, size * nmemb);
+
+	return (size_t)f->gcount();
+}
+
+bool Logger_Dispatcher::sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath)
+{
+	std::ifstream f;
+	CURLcode result = CURLE_GOT_NOTHING;
+
+	curl_off_t remoteFileSizeByte = sftpGetRemoteFileSize(remotepath.c_str());
+
+	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
+	if (!f.good())
+	{
+		perror(NULL);
+		return false;
+	}
+
+	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 0L);
+	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
+	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
+	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
+	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
+	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
+	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
+
+	if (remoteFileSizeByte > 0)
+	{
+		f.seekg(remoteFileSizeByte, std::ios_base::beg);
+		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
+	}
+	else
+		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
+
+	result = curl_easy_perform(curlhandle);
+
+	f.close();
+
+	if (result != CURLE_OK)
+		LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload fail - " << curl_easy_strerror(result));
+
+	return result == CURLE_OK;
+}
+
+bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+{
+	int c;
+	for (c = 0; c < tries; ++c)
+		if (sftpResumeUpload(curlhandle, remotepath, localpath))
+			break;
+
+	return c < tries;
+}
+
+bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const std::string& payload)
+{
+	pugi::xpath_value_type xPathType = pugi::xpath_type_string;
+	bool found = true;
+	std::string foundText;
+
+	if (ev.xpath_present())
+	{
+		pugi::xml_document doc;
+		pugi::xml_parse_result r = doc.load_string(payload.c_str());
+		if (r.status != pugi::xml_parse_status::status_ok)
+		{
+			LOG(Logging::LL_Warning, Logging::LC_Logger, "Payload for event " << ev << " not valid XML");
+			return false;
+		}
+
+		try
+		{
+			pugi::xpath_query xp(ev.xpath().c_str());
+			xPathType = xp.return_type();
+			switch (xPathType)
+			{
+			case pugi::xpath_type_node_set:
+				found = !xp.evaluate_node_set(doc).empty();
+				break;
+			case pugi::xpath_type_number:
+				found = xp.evaluate_number(doc) != 0.0;
+				break;
+			case pugi::xpath_type_string:
+				foundText = xp.evaluate_string(doc);
+				found = !foundText.empty();
+				break;
+			case pugi::xpath_type_boolean:
+				found = xp.evaluate_boolean(doc);
+				break;
+			case pugi::xpath_type_none:// Unknown type (query failed to compile)
+			default:
+				LOG(Logging::LL_Warning, Logging::LC_Logger, "Xpath for event " << ev << " not valid");
+				found = false;
+				break;
+			}
+		}
+		catch (const pugi::xpath_exception& ex)
+		{
+			std::cerr << ex.result().description();
+			return 1;
+		}
+	}
+
+	if (ev.regex_present() && found && xPathType == pugi::xpath_type_string)
+	{
+		std::regex rg(ev.regex());
+		found = std::regex_search(ev.xpath_present() ? foundText : payload, rg);
+	}
+
+	return found;
+}
+
+
+//int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+//{
+//	std::ifstream f;
+//	long uploaded_len = 0;
+//	CURLcode r = CURLE_GOT_NOTHING;
+//	int c;
+//
+//	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
+//	if (!f.good())
+//	{
+//		perror(NULL);
+//		return 0;
+//	}
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
+//
+//	if (timeout)
+//		curl_easy_setopt(curlhandle, CURLOPT_FTP_RESPONSE_TIMEOUT, timeout);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_HEADERFUNCTION, getcontentlengthfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_HEADERDATA, &uploaded_len);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
+//
+//	/* disable passive mode */
+//	curl_easy_setopt(curlhandle, CURLOPT_FTPPORT, "-");
+//	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 1L);
+//
+//	for (c = 0; (r != CURLE_OK) && (c < tries); c++)
+//	{
+//		/* are we resuming? */
+//		if (c)
+//		{ /* yes */
+//			/* determine the length of the file already written */
+//
+//			/*
+//			* With NOBODY and NOHEADER, libcurl will issue a SIZE
+//			* command, but the only way to retrieve the result is
+//			* to parse the returned Content-Length header. Thus,
+//			* getcontentlengthfunc(). We need discardfunc() above
+//			* because HEADER will dump the headers to stdout
+//			* without it.
+//			*/
+//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 1L);
+//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 1L);
+//
+//			r = curl_easy_perform(curlhandle);
+//			if (r != CURLE_OK)
+//				continue;
+//
+//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 0L);
+//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 0L);
+//
+//			f.seekg(uploaded_len, std::ios_base::beg);
+//			//fseek(f, uploaded_len, SEEK_SET);
+//
+//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
+//		}
+//		else
+//		{ /* no */
+//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
+//		}
+//
+//		r = curl_easy_perform(curlhandle);
+//	}
+//
+//	f.close();
+//
+//	if (r == CURLE_OK)
+//		return 1;
+//	else
+//	{
+//		fprintf(stderr, "%s\n", curl_easy_strerror(r));
+//		return 0;
+//	}
+//}
