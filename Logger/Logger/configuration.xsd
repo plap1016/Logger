@@ -1,8 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<xs:schema id="LoggerConfig"
+<xs:schema id="LogConfig"
 		   targetNamespace="LogConfig"
+		   xmlns:mstns="LogConfig"
 		   xmlns:xs="http://www.w3.org/2001/XMLSchema"
 >
+
+	<xs:complexType name="event_string_t">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="regex" type="xs:string" use="optional"/>
+				<xs:attribute name="xpath" type="xs:string" use="optional"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+
 	<xs:element name="Logger">
 		<xs:complexType>
 			<xs:all>
@@ -11,6 +22,14 @@
 				<xs:element name="MaxFileCount" type="xs:unsignedInt"/>
 				<xs:element name="FlushSec" type="xs:unsignedInt" minOccurs="0"/>
 				<xs:element name="MaxFileEventCount" type="xs:unsignedInt" minOccurs="0"/>
+				<xs:element name="FtpUpload" minOccurs="0">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="Event" type="mstns:event_string_t" minOccurs="1" maxOccurs="unbounded"/>
+						</xs:sequence>
+						<xs:attribute name="Host" type="xs:string" use="required"/>
+					</xs:complexType>
+				</xs:element>
 			</xs:all>
 		</xs:complexType>
 	</xs:element>

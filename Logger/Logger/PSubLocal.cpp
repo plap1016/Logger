@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/bind.hpp>
 #include <string>
 #include <sstream>
 #include <set>
@@ -42,6 +43,12 @@ template <> void PSubLocal::processEvent<NewfileEvt>(void)
 	initNewFile();
 }
 
+template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
+{
+	initNewFile();
+	m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
+}
+
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
 	m_strm.rdbuf()->syncflush();
@@ -51,13 +58,22 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 {
 	if (!error)
 	{
-		processBuffer((char*)readBuff, bytes_transferred);
+		try
+		{
+			processBuffer((char*)readBuff, bytes_transferred);
+		}
+		catch (const std::exception& ex)
+		{
+			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset");
+			LOG(LL_Dump, LC_Local, readBuff);
+		}
 		m_sock.async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
 	else
 	{
 		LOG(LL_Warning, LC_Local, "Lost local connection to pSub bus");
 
+		resetPSub();
 		if (error != BA::error::operation_aborted)
 		{
 			if (m_reconectMsg)
@@ -136,7 +152,8 @@ bool PSubLocal::initNewFile(void)
 		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count()
 		<< ".rec.gz";
 
-	m_strm.open(fname.str().c_str());
+	m_fname = fname.str();
+	m_strm.open(m_fname.c_str());
 	if (m_strm.good())
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
@@ -145,6 +162,7 @@ bool PSubLocal::initNewFile(void)
 	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
 		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
 
+	LOG(LL_Info, LC_Local, "Created new log file " << m_fname);
 	return m_strm.good();
 }
 

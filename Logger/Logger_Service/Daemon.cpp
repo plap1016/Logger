@@ -126,17 +126,17 @@ void daemonize(const char *rundir, const char *pidfile)
 		close(i);
 
 	/* Route I/O connections */
-
-	/* Open STDIN */
 	i = open("/dev/null", O_RDWR);
+	dup2 (i, STDIN_FILENO);
+	dup2 (i, STDOUT_FILENO);
+	dup2 (i, STDERR_FILENO);
+	close(i);
 
-	/* STDOUT */
-	dup(i);
-
-	/* STDERR */
-	dup(i);
-
-	chdir(rundir); /* change running directory */
+	if (chdir(rundir) == -1)
+	{
+		syslog(LOG_INFO, "Could not change running directory to %s", rundir);
+		exit(EXIT_FAILURE);
+	}
 
 	/* Ensure only one copy */
 	pidFilehandle = open(pidfile, O_RDWR | O_CREAT, 0600);
@@ -156,12 +156,16 @@ void daemonize(const char *rundir, const char *pidfile)
 		exit(EXIT_FAILURE);
 	}
 
-
 	/* Get and format PID */
 	sprintf(str, "%d\n", getpid());
 
 	/* write pid to lockfile */
-	write(pidFilehandle, str, strlen(str));
+	if (write(pidFilehandle, str, strlen(str)) == -1)
+	{
+		/* Couldn't get lock on lock file */
+		syslog(LOG_INFO, "Could not write to PID lock file %s, exiting", pidfile);
+		exit(EXIT_FAILURE);
+	}
 }
 
 int main(int argc, char* argv[])
