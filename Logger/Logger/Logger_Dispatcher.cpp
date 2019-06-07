@@ -5,6 +5,7 @@
 #include "configuration-pimpl.hxx"
 #include "syscfg-pimpl.hxx"
 #include "PSubLocal.h"
+#include "pugixml/pugixml.hpp"
 
 #include <stdint.h>
 #include <boost/asio.hpp>
@@ -16,6 +17,7 @@
 #include <sstream>
 #include <set>
 #include <cstdio>
+#include <regex>
 
 namespace Logging
 {
@@ -107,10 +109,7 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 
 			if (m_cfg.FtpUpload_present())
 				for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
-				{
-					m_ftpevents.push_back({ PubSub::parseSubject(e), std::shared_ptr<std::string>(e.value_present() ? new std::string(e.value()) : nullptr) });
-					subscribe(m_ftpevents.back().first);
-				}
+					subscribe(PubSub::parseSubject(e));
 
 			haveCfg = true;
 		}
@@ -308,14 +307,15 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 #endif
 	else
 	{
-		for (const std::pair<PubSub::Subject, std::shared_ptr<std::string> >& e : m_ftpevents)
-			if (PubSub::match(e.first, m.subject) && (!e.second || m.payload == *e.second))
-			{
-				// do ftp upload
-				LOG(Logging::LL_Info, Logging::LC_Logger, "Upload trigger \"" << PubSub::toString(m.subject) << "\" detected");
-				ftpUpload();
-				break;
-			}
+		if (m_cfg.FtpUpload_present())
+			for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+				if (PubSub::match(PubSub::parseSubject(e), m.subject) && matchEvent(e, m.payload))
+				{
+					// do ftp upload
+					LOG(Logging::LL_Info, Logging::LC_Logger, "Upload trigger \"" << PubSub::toString(m.subject) << "\" detected");
+					ftpUpload();
+					break;
+				}
 	}
 }
 
@@ -476,6 +476,65 @@ bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, 
 
 	return c < tries;
 }
+
+bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const std::string& payload)
+{
+	pugi::xpath_value_type xPathType = pugi::xpath_type_string;
+	bool found = true;
+	std::string foundText;
+
+	if (ev.xpath_present())
+	{
+		pugi::xml_document doc;
+		pugi::xml_parse_result r = doc.load_string(payload.c_str());
+		if (r.status != pugi::xml_parse_status::status_ok)
+		{
+			LOG(Logging::LL_Warning, Logging::LC_Logger, "Payload for event " << ev << " not valid XML");
+			return false;
+		}
+
+		try
+		{
+			pugi::xpath_query xp(ev.xpath().c_str());
+			xPathType = xp.return_type();
+			switch (xPathType)
+			{
+			case pugi::xpath_type_node_set:
+				found = !xp.evaluate_node_set(doc).empty();
+				break;
+			case pugi::xpath_type_number:
+				found = xp.evaluate_number(doc) != 0.0;
+				break;
+			case pugi::xpath_type_string:
+				foundText = xp.evaluate_string(doc);
+				found = !foundText.empty();
+				break;
+			case pugi::xpath_type_boolean:
+				found = xp.evaluate_boolean(doc);
+				break;
+			case pugi::xpath_type_none:// Unknown type (query failed to compile)
+			default:
+				LOG(Logging::LL_Warning, Logging::LC_Logger, "Xpath for event " << ev << " not valid");
+				found = false;
+				break;
+			}
+		}
+		catch (const pugi::xpath_exception& ex)
+		{
+			std::cerr << ex.result().description();
+			return 1;
+		}
+	}
+
+	if (ev.regex_present() && found && xPathType == pugi::xpath_type_string)
+	{
+		std::regex rg(ev.regex());
+		found = std::regex_search(ev.xpath_present() ? foundText : payload, rg);
+	}
+
+	return found;
+}
+
 
 //int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
 //{
