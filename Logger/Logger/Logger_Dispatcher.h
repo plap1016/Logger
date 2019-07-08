@@ -95,6 +95,7 @@ public:
 	struct evNewFile;
 	struct evNewFileCreated;
 	struct evFlushFile;
+	struct evFtpUpload;
 	template <typename M> void processEvent();
 
 };

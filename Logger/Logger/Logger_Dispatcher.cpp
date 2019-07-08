@@ -286,6 +286,11 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFlushFile>
 	m_local->enqueue<PSubLocal::FlushEvt>();
 }
 
+template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFtpUpload>()
+{
+	ftpUpload();
+}
+
 void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 {
 	std::string str;
