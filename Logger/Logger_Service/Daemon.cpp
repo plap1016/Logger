@@ -13,7 +13,7 @@
 #include "Logger/Logger_Dispatcher.h"
 #include "Task/lock.h"
 
-#define DAEMON_NAME "loggerd"
+#define DAEMON_NAME "ccmloggerd"
 
 namespace Logging
 {
@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
 		syslog(LOG_INFO, "Daemon starting up");
 
 		/* Deamonize */
-		daemonize("/tmp/", "/tmp/loggerd.pid");
+		daemonize("/tmp/", "/tmp/ccmloggerd.pid");
 
 		syslog(LOG_INFO, "Daemon running");
 	}
