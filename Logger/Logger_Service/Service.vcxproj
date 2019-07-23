@@ -66,7 +66,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;libcurl.lib;libssh2_a.lib;zlibstat.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;libssh2.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde_d.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -87,7 +87,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)Common;$(SolutionDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;libcurl.lib;libssh2_a.lib;zlibstat.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Logging.lib;PubSubLib.lib;Task.lib;Logger.lib;zlibstat.lib;libssh2.lib;libeay32.lib;olber32_a.lib;oldap32_a.lib;ssleay32.lib;comsuppw.lib;xsde.lib;ws2_32.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

@@ -38,8 +38,6 @@
     </ClInclude>
     <ClInclude Include="Logger_Dispatcher.h" />
     <ClInclude Include="gzstream.h" />
-    <ClInclude Include="zlib.h" />
-    <ClInclude Include="zconf.h" />
     <ClInclude Include="PSubLocal.h" />
     <ClInclude Include="syscfg.hxx">
       <Filter>Config</Filter>

@@ -1,6 +1,9 @@
 #ifdef WIN32
 #include "stdafx.h"
 #endif // WIN32
+
+#define __STDC_WANT_LIB_EXT1__ 1
+
 #include "Logger_Dispatcher.h"
 #include "configuration-pimpl.hxx"
 #include "syscfg-pimpl.hxx"
@@ -331,156 +334,365 @@ void Logger_Dispatcher::ftpUpload()
 	m_newFileComplete.wait();
 	BF::path currFile(m_local->currentFileName());
 
-	CURL *curlhandle = NULL;
-	curl_global_init(CURL_GLOBAL_ALL);
-	curlhandle = curl_easy_init();
+	SOCKET sock = 0;
+	LIBSSH2_SESSION* session = nullptr;
+	LIBSSH2_SFTP *sftp_session = nullptr;
 
-	BF::path p(cfg().LogPath());
-	std::string fnroot = cfg().FileNameRoot();
-	std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
-	for (BF::directory_entry d : BF::directory_iterator(p))
+	struct myerr
 	{
-		if (d.path().filename().empty())
-			continue;
+		std::string msg;
+	};
 
-		std::string droot = d.path().filename().string().substr(0, fnroot.size());
-		if (droot == fnroot && d.path().filename().string() != currFile.filename().string())
+	try
+	{
+		int rc;
+		rc = libssh2_init(0);
+		if (rc)
 		{
-			std::string destfname = destpath + d.path().filename().string();
-			LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
-			if (upload(curlhandle, destfname, d.path().string(), 0, 3))
+			LOG(Logging::LL_Debug, Logging::LC_Logger, "libssh2 initialization failed " << rc);
+			return;
+		}
+
+		session = libssh2_session_init();
+		if (session == NULL)
+		{
+			LOG(Logging::LL_Debug, Logging::LC_Logger, "libssh2 session initialization failed");
+			return;
+		}
+
+		sock = socket(AF_INET, SOCK_STREAM, 0);
+
+		addrinfo hints, *res;
+		int errcode;
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags |= AI_CANONNAME;
+
+		errcode = getaddrinfo(m_cfg.FtpUpload().Host().c_str(), NULL, &hints, &res);
+		if (errcode != 0)
+		{
+			LOG(Logging::LL_Debug, Logging::LC_Logger, "getaddrinfo fail: " << errcode);
+			return;
+		}
+
+		while (res)
+		{
+			if (res->ai_family == AF_INET)
 			{
-				LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
-				BF::remove(d.path());
+
+				struct sockaddr_in sin = *((struct sockaddr_in *)res->ai_addr);
+				sin.sin_port = htons(22);
+				if (connect(sock, (struct sockaddr*)(&sin), sizeof(struct sockaddr_in)) == 0)
+				{
+					LOG(Logging::LL_Debug, Logging::LC_Logger, "Connected");
+					break;
+				}
+			}
+			res = res->ai_next;
+		}
+		if (!res)
+		{
+			std::stringstream strm; strm << "Failed to connect to " << m_cfg.FtpUpload().Host() << ":22";
+			throw myerr{ strm.str() };
+		}
+
+		libssh2_session_set_blocking(session, 1);
+		rc = libssh2_session_handshake(session, sock);
+
+		if (rc)
+		{
+			std::stringstream strm; strm << "Failure establishing SSH session: " << rc;
+			throw myerr{ strm.str() };
+		}
+
+		/* At this point we havn't yet authenticated.  The first thing to do
+		* is check the hostkey's fingerprint against our known hosts Your app
+		* may have it hard coded, may go to a file, may present it to the
+		* user, that's your call
+		*/
+		//const char *fingerprint = libssh2_hostkey_hash(session, LIBSSH2_HOSTKEY_HASH_SHA1);
+		//fprintf(stderr, "Fingerprint: ");
+		//for (i = 0; i < 20; i++)
+		//{
+		//	fprintf(stderr, "%02X ", (unsigned char)fingerprint[i]);
+		//}
+		//fprintf(stderr, "\n");
+
+		//if (auth_pw)
+		//{
+		/* We could authenticate via password */
+		if (libssh2_userauth_password(session, m_cfg.FtpUpload().username().c_str(), m_cfg.FtpUpload().password().c_str()))
+			throw myerr{ "Authentication by username/password failed" };
+		//}
+		//else
+		//{
+		//	/* Or by public key */
+		//	const char *pubkey = "/home/username/.ssh/id_rsa.pub";
+		//	const char *privkey = "/home/username/.ssh/id_rsa.pub";
+		//	if (libssh2_userauth_publickey_fromfile(session, username,
+
+		//		pubkey, privkey,
+		//		password))
+		//	{
+		//		LOG(Logging::LL_Debug, Logging::LC_Logger, "Authentication by public key failed");
+		//		goto shutdown;
+		//	}
+		//}
+
+		sftp_session = libssh2_sftp_init(session);
+		if (!sftp_session)
+			throw myerr{ "Unable to init SFTP session" };
+
+		BF::path p(cfg().LogPath());
+		std::string fnroot = cfg().FileNameRoot();
+		std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
+		for (BF::directory_entry d : BF::directory_iterator(p))
+		{
+			if (d.path().filename().empty())
+				continue;
+
+			std::string droot = d.path().filename().string().substr(0, fnroot.size());
+			if (droot == fnroot && d.path().filename().string() != currFile.filename().string())
+			{
+				std::string destfname = destpath + d.path().filename().string();
+				LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
+
+				LIBSSH2_SFTP_HANDLE *sftp_handle;
+
+				/* Request a file via SFTP */
+				sftp_handle = libssh2_sftp_open(sftp_session, destfname.c_str(),
+												LIBSSH2_FXF_WRITE | LIBSSH2_FXF_CREAT /*| LIBSSH2_FXF_TRUNC*/,
+												LIBSSH2_SFTP_S_IRUSR | LIBSSH2_SFTP_S_IWUSR |
+												LIBSSH2_SFTP_S_IRGRP | LIBSSH2_SFTP_S_IROTH);
+
+				if (!sftp_handle)
+				{
+					LOG(Logging::LL_Debug, Logging::LC_Logger, "Unable to open " << destfname << " with SFTP");
+				}
+				else
+				{
+					LIBSSH2_SFTP_ATTRIBUTES attr;
+					libssh2_sftp_fstat(sftp_handle, &attr);
+					libssh2_sftp_seek64(sftp_handle, attr.filesize);
+
+					FILE *loc;
+					fopen_s(&loc, d.path().string().c_str(), "rb");
+					if (fseek(loc, attr.filesize, SEEK_SET))
+					{
+						LOG(Logging::LL_Info, Logging::LC_Logger, "Remote file already larger than local ");
+						continue;
+					}
+
+					char buff[0xFFFFu] = { 0 };
+					char* ptr = 0;
+					rc = -1;
+					do
+					{
+						size_t nread = fread(buff, 1, sizeof(buff), loc);
+						if (nread <= 0)
+							break;
+
+						do
+						{
+							/* write data in a loop until we block */
+							rc = libssh2_sftp_write(sftp_handle, buff, nread);
+
+							if (rc < 0)
+								break;
+							ptr += rc;
+							nread -= rc;
+						} while (nread);
+
+					} while (rc > 0);
+
+					fclose(loc);
+					libssh2_sftp_close(sftp_handle);
+
+					if (rc == 0)
+					{
+						LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
+						BF::remove(d.path());
+					}
+				}
 			}
 		}
+
+		libssh2_sftp_shutdown(sftp_session);
 	}
-
-	curl_easy_cleanup(curlhandle);
-	curl_global_cleanup();
-}
-
-/* parse headers for Content-Length */
-size_t getcontentlengthfunc(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	int r;
-	long len = 0;
+	catch (const myerr& e)
+	{
+		LOG(Logging::LL_Warning, Logging::LC_Logger, e.msg);
+	}
 
 #ifdef WIN32
-	r = sscanf_s(ptr, "Content-Length: %ld\n", &len);
+	closesocket(sock);
 #else
-	r = std::sscanf(ptr, "Content-Length: %ld\n", &len);
+	close(sock);
 #endif
-	if (r)
-		*((long *)stream) = len;
-
-	return size * nmemb;
+	libssh2_session_disconnect(session, "Normal Shutdown, Thank you for playing");
+	libssh2_session_free(session);
+	libssh2_exit();
 }
 
-curl_off_t Logger_Dispatcher::sftpGetRemoteFileSize(const char *i_remoteFile)
-{
-	CURLcode result = CURLE_GOT_NOTHING;
-	curl_off_t remoteFileSizeByte = -1;
-	CURL *curlHandlePtr = NULL;
+//void Logger_Dispatcher::ftpUpload()
+//{
+//	// synchronous call
+//	m_local->enqueue<NewfileEvtSync>();
+//	m_newFileComplete.wait();
+//	BF::path currFile(m_local->currentFileName());
+//
+//	CURL *curlhandle = NULL;
+//	curl_global_init(CURL_GLOBAL_ALL);
+//	curlhandle = curl_easy_init();
+//
+//	BF::path p(cfg().LogPath());
+//	std::string fnroot = cfg().FileNameRoot();
+//	std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
+//	for (BF::directory_entry d : BF::directory_iterator(p))
+//	{
+//		if (d.path().filename().empty())
+//			continue;
+//
+//		std::string droot = d.path().filename().string().substr(0, fnroot.size());
+//		if (droot == fnroot && d.path().filename().string() != currFile.filename().string())
+//		{
+//			std::string destfname = destpath + d.path().filename().string();
+//			LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
+//			if (upload(curlhandle, destfname, d.path().string(), 0, 3))
+//			{
+//				LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
+//				BF::remove(d.path());
+//			}
+//		}
+//	}
+//
+//	curl_easy_cleanup(curlhandle);
+//	curl_global_cleanup();
+//}
 
-	curlHandlePtr = curl_easy_init();
-	curl_easy_setopt(curlHandlePtr, CURLOPT_VERBOSE, 1L);
-
-	curl_easy_setopt(curlHandlePtr, CURLOPT_URL, i_remoteFile);
-	curl_easy_setopt(curlHandlePtr, CURLOPT_NOBODY, 1);
-	curl_easy_setopt(curlHandlePtr, CURLOPT_HEADER, 1);
-	curl_easy_setopt(curlHandlePtr, CURLOPT_FILETIME, 1);
-	curl_easy_setopt(curlHandlePtr, CURLOPT_NOPROGRESS, 1);
-
-	result = curl_easy_perform(curlHandlePtr);
-	if (CURLE_OK == result)
-	{
-#if LIBCURL_VERSION_NUM >= 0x073700
-		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remoteFileSizeByte);
-#else
-		double fs = 0.0;
-		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &fs);
-		remoteFileSizeByte = (curl_off_t)fs;
-#endif
-		if (result)
-			return -1;
-		LOG(Logging::LL_Debug, Logging::LC_Logger, "Remote file size = " << remoteFileSizeByte);
-	}
-	curl_easy_cleanup(curlHandlePtr);
-
-	return remoteFileSizeByte;
-}
-
-/* discard downloaded data */
-size_t discardfunc(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	(void)ptr;
-	(void)stream;
-	return size * nmemb;
-}
-
-/* read data to upload */
-size_t readfunc(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-	std::ifstream* f = (std::ifstream*)stream;
-
-	if (!*f)
-		return CURL_READFUNC_ABORT;
-
-	f->read(ptr, size * nmemb);
-
-	return (size_t)f->gcount();
-}
-
-bool Logger_Dispatcher::sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath)
-{
-	std::ifstream f;
-	CURLcode result = CURLE_GOT_NOTHING;
-
-	curl_off_t remoteFileSizeByte = sftpGetRemoteFileSize(remotepath.c_str());
-
-	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
-	if (!f.good())
-	{
-		perror(NULL);
-		return false;
-	}
-
-	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 0L);
-	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
-	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
-	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
-	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
-	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
-	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
-
-	if (remoteFileSizeByte > 0)
-	{
-		f.seekg(remoteFileSizeByte, std::ios_base::beg);
-		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
-	}
-	else
-		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
-
-	result = curl_easy_perform(curlhandle);
-
-	f.close();
-
-	if (result != CURLE_OK)
-		LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload fail - " << curl_easy_strerror(result));
-
-	return result == CURLE_OK;
-}
-
-bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
-{
-	int c;
-	for (c = 0; c < tries; ++c)
-		if (sftpResumeUpload(curlhandle, remotepath, localpath))
-			break;
-
-	return c < tries;
-}
+///* parse headers for Content-Length */
+//size_t getcontentlengthfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+//{
+//	int r;
+//	long len = 0;
+//
+//#ifdef WIN32
+//	r = sscanf_s(ptr, "Content-Length: %ld\n", &len);
+//#else
+//	r = std::sscanf(ptr, "Content-Length: %ld\n", &len);
+//#endif
+//	if (r)
+//		*((long *)stream) = len;
+//
+//	return size * nmemb;
+//}
+//
+//curl_off_t Logger_Dispatcher::sftpGetRemoteFileSize(const char *i_remoteFile)
+//{
+//	CURLcode result = CURLE_GOT_NOTHING;
+//	curl_off_t remoteFileSizeByte = -1;
+//	CURL *curlHandlePtr = NULL;
+//
+//	curlHandlePtr = curl_easy_init();
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_VERBOSE, 1L);
+//
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_URL, i_remoteFile);
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_NOBODY, 1);
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_HEADER, 1);
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_FILETIME, 1);
+//	curl_easy_setopt(curlHandlePtr, CURLOPT_NOPROGRESS, 1);
+//
+//	result = curl_easy_perform(curlHandlePtr);
+//	if (CURLE_OK == result)
+//	{
+//#if LIBCURL_VERSION_NUM >= 0x073700
+//		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &remoteFileSizeByte);
+//#else
+//		double fs = 0.0;
+//		result = curl_easy_getinfo(curlHandlePtr, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &fs);
+//		remoteFileSizeByte = (curl_off_t)fs;
+//#endif
+//		if (result)
+//			return -1;
+//		LOG(Logging::LL_Debug, Logging::LC_Logger, "Remote file size = " << remoteFileSizeByte);
+//	}
+//	curl_easy_cleanup(curlHandlePtr);
+//
+//	return remoteFileSizeByte;
+//}
+//
+///* discard downloaded data */
+//size_t discardfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+//{
+//	(void)ptr;
+//	(void)stream;
+//	return size * nmemb;
+//}
+//
+///* read data to upload */
+//size_t readfunc(char *ptr, size_t size, size_t nmemb, void *stream)
+//{
+//	std::ifstream* f = (std::ifstream*)stream;
+//
+//	if (!*f)
+//		return CURL_READFUNC_ABORT;
+//
+//	f->read(ptr, size * nmemb);
+//
+//	return (size_t)f->gcount();
+//}
+//
+//bool Logger_Dispatcher::sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath)
+//{
+//	std::ifstream f;
+//	CURLcode result = CURLE_GOT_NOTHING;
+//
+//	curl_off_t remoteFileSizeByte = sftpGetRemoteFileSize(remotepath.c_str());
+//
+//	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
+//	if (!f.good())
+//	{
+//		perror(NULL);
+//		return false;
+//	}
+//
+//	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 0L);
+//	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
+//	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
+//	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
+//	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
+//	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
+//
+//	if (remoteFileSizeByte > 0)
+//	{
+//		f.seekg(remoteFileSizeByte, std::ios_base::beg);
+//		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
+//	}
+//	else
+//		curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
+//
+//	result = curl_easy_perform(curlhandle);
+//
+//	f.close();
+//
+//	if (result != CURLE_OK)
+//		LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload fail - " << curl_easy_strerror(result));
+//
+//	return result == CURLE_OK;
+//}
+//
+//bool Logger_Dispatcher::upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
+//{
+//	int c;
+//	for (c = 0; c < tries; ++c)
+//		if (sftpResumeUpload(curlhandle, remotepath, localpath))
+//			break;
+//
+//	return c < tries;
+//}
 
 bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const std::string& payload)
 {
@@ -539,88 +751,3 @@ bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const st
 
 	return found;
 }
-
-
-//int upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries)
-//{
-//	std::ifstream f;
-//	long uploaded_len = 0;
-//	CURLcode r = CURLE_GOT_NOTHING;
-//	int c;
-//
-//	f.open(localpath.c_str(), std::ios_base::binary | std::ios_base::in);
-//	if (!f.good())
-//	{
-//		perror(NULL);
-//		return 0;
-//	}
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_UPLOAD, 1L);
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_URL, remotepath.c_str());
-//
-//	if (timeout)
-//		curl_easy_setopt(curlhandle, CURLOPT_FTP_RESPONSE_TIMEOUT, timeout);
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_HEADERFUNCTION, getcontentlengthfunc);
-//	curl_easy_setopt(curlhandle, CURLOPT_HEADERDATA, &uploaded_len);
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_WRITEFUNCTION, discardfunc);
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_READFUNCTION, readfunc);
-//	curl_easy_setopt(curlhandle, CURLOPT_READDATA, &f);
-//
-//	/* disable passive mode */
-//	curl_easy_setopt(curlhandle, CURLOPT_FTPPORT, "-");
-//	curl_easy_setopt(curlhandle, CURLOPT_FTP_CREATE_MISSING_DIRS, 1L);
-//
-//	curl_easy_setopt(curlhandle, CURLOPT_VERBOSE, 1L);
-//
-//	for (c = 0; (r != CURLE_OK) && (c < tries); c++)
-//	{
-//		/* are we resuming? */
-//		if (c)
-//		{ /* yes */
-//			/* determine the length of the file already written */
-//
-//			/*
-//			* With NOBODY and NOHEADER, libcurl will issue a SIZE
-//			* command, but the only way to retrieve the result is
-//			* to parse the returned Content-Length header. Thus,
-//			* getcontentlengthfunc(). We need discardfunc() above
-//			* because HEADER will dump the headers to stdout
-//			* without it.
-//			*/
-//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 1L);
-//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 1L);
-//
-//			r = curl_easy_perform(curlhandle);
-//			if (r != CURLE_OK)
-//				continue;
-//
-//			curl_easy_setopt(curlhandle, CURLOPT_NOBODY, 0L);
-//			curl_easy_setopt(curlhandle, CURLOPT_HEADER, 0L);
-//
-//			f.seekg(uploaded_len, std::ios_base::beg);
-//			//fseek(f, uploaded_len, SEEK_SET);
-//
-//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 1L);
-//		}
-//		else
-//		{ /* no */
-//			curl_easy_setopt(curlhandle, CURLOPT_APPEND, 0L);
-//		}
-//
-//		r = curl_easy_perform(curlhandle);
-//	}
-//
-//	f.close();
-//
-//	if (r == CURLE_OK)
-//		return 1;
-//	else
-//	{
-//		fprintf(stderr, "%s\n", curl_easy_strerror(r));
-//		return 0;
-//	}
-//}
