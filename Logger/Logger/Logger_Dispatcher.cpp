@@ -1,8 +1,8 @@
 #ifdef WIN32
 #include "stdafx.h"
+#else
+#define fopen_s(FD, FPATH, FLAGS) *FD = fopen(FPATH, FLAGS);
 #endif // WIN32
-
-#define __STDC_WANT_LIB_EXT1__ 1
 
 #include "Logger_Dispatcher.h"
 #include "configuration-pimpl.hxx"
@@ -334,7 +334,11 @@ void Logger_Dispatcher::ftpUpload()
 	m_newFileComplete.wait();
 	BF::path currFile(m_local->currentFileName());
 
+#ifdef WIN32
 	SOCKET sock = 0;
+#else
+	int sock = 0;
+#endif
 	LIBSSH2_SESSION* session = nullptr;
 	LIBSSH2_SFTP *sftp_session = nullptr;
 

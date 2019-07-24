@@ -10,8 +10,8 @@
 #include <memory>
 #include <boost/asio.hpp>
 //#include <curl/curl.h>
-#include <libssh2/libssh2.h>
-#include <libssh2/libssh2_sftp.h>
+#include <libssh2.h>
+#include <libssh2_sftp.h>
 
 #if defined(_DEBUG) && defined(WIN32)
 extern HANDLE g_exitEvent;
