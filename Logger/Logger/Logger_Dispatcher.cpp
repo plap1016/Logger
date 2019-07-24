@@ -447,7 +447,7 @@ void Logger_Dispatcher::ftpUpload()
 
 		BF::path p(cfg().LogPath());
 		std::string fnroot = cfg().FileNameRoot();
-		std::string destpath = m_cfg.FtpUpload().Host() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
+		std::string destpath = /*m_cfg.FtpUpload().Host() +*/ m_cfg.FtpUpload().path() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
 		for (BF::directory_entry d : BF::directory_iterator(p))
 		{
 			if (d.path().filename().empty())
@@ -469,7 +469,10 @@ void Logger_Dispatcher::ftpUpload()
 
 				if (!sftp_handle)
 				{
-					LOG(Logging::LL_Debug, Logging::LC_Logger, "Unable to open " << destfname << " with SFTP");
+					char* errmsg;
+					libssh2_session_last_error(session, &errmsg, nullptr, 0);
+					uint32_t sftperr = libssh2_sftp_last_error(sftp_session);
+					LOG(Logging::LL_Debug, Logging::LC_Logger, "Unable to open " << destfname << " with SFTP. " << errmsg);
 				}
 				else
 				{
@@ -492,7 +495,10 @@ void Logger_Dispatcher::ftpUpload()
 					{
 						size_t nread = fread(buff, 1, sizeof(buff), loc);
 						if (nread <= 0)
+						{
+							rc = nread == 0 ? 0 : rc;
 							break;
+						}
 
 						do
 						{
