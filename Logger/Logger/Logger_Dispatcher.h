@@ -9,9 +9,13 @@
 #include <thread>
 #include <memory>
 #include <boost/asio.hpp>
-//#include <curl/curl.h>
+#if defined(WIN32)
+#include <libssh2/libssh2.h>
+#include <libssh2/libssh2_sftp.h>
+#else
 #include <libssh2.h>
 #include <libssh2_sftp.h>
+#endif
 
 #if defined(_DEBUG) && defined(WIN32)
 extern HANDLE g_exitEvent;
