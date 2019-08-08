@@ -9,7 +9,13 @@
 #include <thread>
 #include <memory>
 #include <boost/asio.hpp>
-#include <curl/curl.h>
+#if defined(WIN32)
+#include <libssh2/libssh2.h>
+#include <libssh2/libssh2_sftp.h>
+#else
+#include <libssh2.h>
+#include <libssh2_sftp.h>
+#endif
 
 #if defined(_DEBUG) && defined(WIN32)
 extern HANDLE g_exitEvent;
@@ -69,9 +75,9 @@ class Logger_Dispatcher
 
 	void start();
 	void ftpUpload();
-	bool upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
-	bool sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath);
-	curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
+	//bool upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
+	//bool sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath);
+	//curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
 	bool matchEvent(const LogConfig::event_string_t& ev, const std::string& payload);
 
 	void OnConnect(const boost::system::error_code& error);
