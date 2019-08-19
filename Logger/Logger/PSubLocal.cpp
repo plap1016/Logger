@@ -40,17 +40,20 @@ template <> void PSubLocal::processEvent<ReconnectEvt>(void)
 
 template <> void PSubLocal::processEvent<NewfileEvt>(void)
 {
+	std::unique_lock<std::recursive_mutex> s(m_lk);
 	initNewFile();
 }
 
 template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
 {
+	std::unique_lock<std::recursive_mutex> s(m_lk);
 	initNewFile();
 	m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
 }
 
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
+	std::unique_lock<std::recursive_mutex> s(m_lk);
 	m_strm.rdbuf()->syncflush();
 }
 
@@ -170,6 +173,9 @@ void PSubLocal::start()
 {
 	LOG(LL_Debug, LC_Local, "start");
 	std::unique_lock<std::recursive_mutex> s(m_lk);
+	if (m_running)
+		return;
+	
 	m_running = true;
 
 	m_sock.close();
