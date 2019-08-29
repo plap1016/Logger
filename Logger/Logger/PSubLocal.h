@@ -32,6 +32,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	std::recursive_mutex m_lk;
 	ogzstream m_strm;
 	std::string m_fname;
+	std::chrono::steady_clock::time_point m_start_time;
 	std::chrono::steady_clock::time_point m_time_marker;
 
 	BA::ip::tcp::socket m_sock;
@@ -47,7 +48,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 
 	Task::MsgDelayMsgPtr m_reconectMsg;
 	Task::MsgDelayMsgPtr m_flushMsg;
-	
+
 	void OnConnect(const boost::system::error_code& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 

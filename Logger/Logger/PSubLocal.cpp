@@ -175,7 +175,7 @@ void PSubLocal::start()
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 	if (m_running)
 		return;
-	
+
 	m_running = true;
 
 	m_sock.close();
@@ -210,7 +210,9 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-	std::chrono::milliseconds tdiff = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_time_marker);
+	std::chrono::milliseconds tdiff1 = std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - m_start_time);
+	std::chrono::milliseconds tdiff2 = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
+	std::chrono::milliseconds tdiff3 = std::chrono::duration_cast<std::chrono::milliseconds>(tdiff2 - tdiff1);
 	m_time_marker = now;
 
 	//typedef transform_width< binary_from_base64<std::string::const_iterator>, 8, 6 > it_binary_t;
@@ -221,7 +223,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	std::string base64(it_base64_t(m.payload.begin()), it_base64_t(m.payload.end()));
 	base64.append(writePaddChars, '=');
 
-	m_strm << tdiff.count() << " " << m.age << " " << m.ttl << " ";
+	m_strm << tdiff3.count() << " " << m.age << " " << m.ttl << " ";
 
 	for (uint32_t p : m.postmarks)
 		m_strm << p << " ";
