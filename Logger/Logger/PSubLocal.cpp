@@ -160,7 +160,7 @@ bool PSubLocal::initNewFile(void)
 	if (m_strm.good())
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
-	m_time_marker = std::chrono::steady_clock::now();
+	m_start_time = m_time_marker = std::chrono::steady_clock::now();
 
 	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
 		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
