@@ -113,6 +113,8 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 			if (m_cfg.FtpUpload_present())
 				for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
 					subscribe(PubSub::parseSubject(e));
+			else
+				m_haveSysCfg = true; // Don't bother waiting for or requesting Shared config
 
 			haveCfg = true;
 		}
