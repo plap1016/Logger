@@ -173,8 +173,6 @@ void PSubLocal::start()
 {
 	LOG(LL_Debug, LC_Local, "start");
 	std::unique_lock<std::recursive_mutex> s(m_lk);
-	if (m_running)
-		return;
 
 	m_running = true;
 
