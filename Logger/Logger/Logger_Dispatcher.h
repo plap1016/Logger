@@ -52,7 +52,7 @@ class Logger_Dispatcher
 	{
 		boost::system::error_code error = boost::asio::error::broken_pipe;
 
-		boost::asio::write(*m_sockptr, boost::asio::buffer(buff), error);
+		boost::asio::write(*m_sockptr, boost::asio::buffer(frameMsg(buff)), error);
 		if (error)
 			m_sockptr->close();
 	};
