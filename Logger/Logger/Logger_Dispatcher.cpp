@@ -62,7 +62,7 @@ Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& p
 	, m_sockThread()
 	, m_pubsubaddr(boost::asio::ip::tcp::socket::endpoint_type(boost::asio::ip::address_v4::from_string(psubAddr), 3101))
 {
-	m_sockThread = std::thread(std::bind(&Logger_Dispatcher::socketThread, this));
+	m_sockThread = std::thread([=] { socketThread(); });
 
 	getMsgDispatcher().start();
 }
