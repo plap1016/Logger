@@ -41,7 +41,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	{
 		boost::system::error_code error = BA::error::broken_pipe;
 
-		BA::write(m_sock, BA::buffer(buff), error);
+		BA::write(m_sock, BA::buffer(frameMsg(buff)), error);
 		if (error)
 			m_sock.close();
 	};
