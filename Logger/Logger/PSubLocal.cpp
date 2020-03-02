@@ -207,7 +207,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	LOG(LL_Debug, LC_Local, "Received msg " << PubSub::toString(m.subject, str));
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
-	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	std::chrono::milliseconds tdiff1 = std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - m_start_time);
 	std::chrono::milliseconds tdiff2 = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
 	std::chrono::milliseconds tdiff3 = std::chrono::duration_cast<std::chrono::milliseconds>(tdiff2 - tdiff1);
