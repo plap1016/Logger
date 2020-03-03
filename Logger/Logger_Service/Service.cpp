@@ -22,8 +22,8 @@ namespace Logging
 }
 
 HANDLE  hStopEvent;
-LPTSTR  lpszServiceName = L"CCM2_Logger";
-LPTSTR  lpszServiceDisplayName = L"CCM2 Logging Service";
+LPTSTR  lpszServiceName = L"pSub_Logger";
+LPTSTR  lpszServiceDisplayName = L"pSub Logging Service";
 SERVICE_STATUS_HANDLE   ssh;
 bool g_exe(false);
 Logging::LogFile logfile, *plogfile(&logfile);
