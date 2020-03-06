@@ -204,6 +204,9 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Common\Logging\Logging.vcxproj">
+      <Project>{6a539aa7-5b81-4a9e-bd65-c5b9be28d751}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\Common\PubSubLib\PubSubLib.vcxproj">
       <Project>{83e69238-56ee-42bf-9255-fba049495b84}</Project>
     </ProjectReference>
