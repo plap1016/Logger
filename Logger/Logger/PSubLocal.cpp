@@ -160,7 +160,7 @@ bool PSubLocal::initNewFile(void)
 	if (m_strm.good())
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
-	m_start_time = m_time_marker = std::chrono::steady_clock::now();
+	m_start_time = m_time_marker = qpc_clock::now();
 
 	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
 		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
@@ -207,7 +207,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	LOG(LL_Debug, LC_Local, "Received msg " << PubSub::toString(m.subject, str));
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
-	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	qpc_clock::time_point now = qpc_clock::now();
 	std::chrono::milliseconds tdiff1 = std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - m_start_time);
 	std::chrono::milliseconds tdiff2 = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
 	std::chrono::milliseconds tdiff3 = std::chrono::duration_cast<std::chrono::milliseconds>(tdiff2 - tdiff1);
