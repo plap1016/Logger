@@ -35,21 +35,24 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	qpc_clock::time_point m_start_time;
 	qpc_clock::time_point m_time_marker;
 
-	BA::ip::tcp::socket m_sock;
+	//BA::ip::tcp::socket m_sock;
+	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
 	bool m_running;
 	void sendBuffer(const std::string& buff)
 	{
 		boost::system::error_code error = BA::error::broken_pipe;
 
-		BA::write(m_sock, BA::buffer(frameMsg(buff)), error);
+		BA::write(*m_sockptr, BA::buffer(frameMsg(buff)), error);
 		if (error)
-			m_sock.close();
+			m_sockptr->close();
 	};
 
 	Task::MsgDelayMsgPtr m_reconectMsg;
 	Task::MsgDelayMsgPtr m_flushMsg;
 
-	void OnConnect(const boost::system::error_code& error);
+	void connect(const std::string& address, const std::string& port);
+	void onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket);
+	void onConnectionError(const std::string& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
 	void pSubUnknownMsg(uint8_t type, const std::string& payload) {}

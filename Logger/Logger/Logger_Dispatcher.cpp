@@ -60,7 +60,7 @@ Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& p
 	: Task::TActiveTask<Logger_Dispatcher>(2)
 	, Logging::LogClient(log)
 	, m_sockThread()
-	, m_pubsubaddr(boost::asio::ip::tcp::socket::endpoint_type(boost::asio::ip::address_v4::from_string(psubAddr), 3101))
+	, m_pubsubaddr(psubAddr)
 {
 	m_sockThread = std::thread([=] { socketThread(); });
 
@@ -187,9 +187,11 @@ void Logger_Dispatcher::start()
 	else
 		m_sockptr->close();
 
-	m_sockptr->open(boost::asio::ip::tcp::v4());
-	m_sockptr->set_option(boost::asio::socket_base::keep_alive(true));
-	m_sockptr->async_connect(m_pubsubaddr, boost::bind(&Logger_Dispatcher::OnConnect, this, BA::placeholders::error));
+	std::string::size_type i = m_pubsubaddr.find(':');
+	if (i == std::string::npos)
+		connect(m_pubsubaddr, "3101");
+	else
+		connect(m_pubsubaddr.substr(0, i), m_pubsubaddr.substr(i + 1));
 }
 
 template <> void Logger_Dispatcher::processEvent<ReconnectEvt>(void)
@@ -197,36 +199,71 @@ template <> void Logger_Dispatcher::processEvent<ReconnectEvt>(void)
 	start();
 }
 
-void Logger_Dispatcher::OnConnect(const boost::system::error_code& error)
+void Logger_Dispatcher::connect(const std::string& address, const std::string& port)
 {
-	if (error)
-		enqueueWithDelay<ReconnectEvt>(1000);
-	else
+	namespace BIP = boost::asio::ip;
+
+	std::shared_ptr<BIP::tcp::socket> socket = std::make_shared<BIP::tcp::socket>(m_iosvc);
+	std::shared_ptr<BIP::tcp::resolver> resolver = std::make_shared<BIP::tcp::resolver>(m_iosvc);
+	BIP::tcp::resolver::query query(address, port);
+
+	socket->open(boost::asio::ip::tcp::v4());
+	socket->set_option(boost::asio::socket_base::keep_alive(true));
+
+	auto connectHandler = [socket, this]
+		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
 	{
-		LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
+		if (errorCode)
+			onConnectionError("Could not connect: " + errorCode.message());
+		else if (it == BIP::tcp::resolver::iterator())
+			onConnectionError("Could not connect!");
+		else
+			onConnected(std::move(socket));
+	};
 
-		resetPSub();
+	auto resolveHandler = [socket, resolver, connectHandler, this]
+		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
+	{
+		if (errorCode)
+			onConnectionError("Could not resolve address: " + errorCode.message());
+		else
+			boost::asio::async_connect(*socket, it, BIP::tcp::resolver::iterator(), connectHandler);
+	};
 
-		// Subscribe to stuff
-		subscribe(SUB_CFG);
-		subscribe(SUB_SHARED_CFG);
-		subscribe(SUB_NEW_FILE);
-		subscribe(SUB_FLUSH_FILE);
+	resolver->async_resolve(query, resolveHandler);
+}
+
+void Logger_Dispatcher::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
+{
+	LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
+
+	resetPSub();
+
+	// Subscribe to stuff
+	subscribe(SUB_CFG);
+	subscribe(SUB_SHARED_CFG);
+	subscribe(SUB_NEW_FILE);
+	subscribe(SUB_FLUSH_FILE);
 #if defined(_DEBUG) && defined(WIN32)
-		subscribe(SUB_DIE);
+	subscribe(SUB_DIE);
 #endif
 
-		sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
+	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
-		if (!haveCfg)
-			m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
+	if (!haveCfg)
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
 
-		if (m_here)
-			m_here->cancelMsg();
-		m_here = enqueueWithDelay<evHereTime>(2000, true);
+	if (m_here)
+		m_here->cancelMsg();
+	m_here = enqueueWithDelay<evHereTime>(2000, true);
 
-		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
-	}
+	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+}
+
+void Logger_Dispatcher::onConnectionError(const std::string& error)
+{
+	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
+	enqueueWithDelay<ReconnectEvt>(1000);
 }
 
 void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
@@ -347,7 +384,7 @@ void Logger_Dispatcher::ftpUpload()
 	struct myerr
 	{
 		std::string msg;
-	};
+};
 
 	try
 	{
@@ -390,7 +427,7 @@ void Logger_Dispatcher::ftpUpload()
 
 				struct sockaddr_in sin = *((struct sockaddr_in *)res->ai_addr);
 				sin.sin_port = htons(22);
-				if (connect(sock, (struct sockaddr*)(&sin), sizeof(struct sockaddr_in)) == 0)
+				if (::connect(sock, (struct sockaddr*)(&sin), sizeof(struct sockaddr_in)) == 0)
 				{
 					LOG(Logging::LL_Debug, Logging::LC_Logger, "Connected");
 					break;

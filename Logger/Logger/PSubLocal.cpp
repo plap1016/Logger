@@ -22,7 +22,6 @@ PSubLocal::PSubLocal(Logger_Dispatcher& disp)
 	: Task::TTask<PSubLocal>(disp.getMsgDispatcher())
 	, Logging::LogClient(disp)
 	, m_disp(disp)
-	, m_sock(disp.iosvc())
 	, m_running(false)
 {
 }
@@ -70,7 +69,7 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset");
 			LOG(LL_Dump, LC_Local, readBuff);
 		}
-		m_sock.async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+		m_sockptr->async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
 	else
 	{
@@ -86,29 +85,60 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 	}
 }
 
-void PSubLocal::OnConnect(const boost::system::error_code& error)
+void PSubLocal::connect(const std::string& address, const std::string& port)
 {
-	if (error == BA::error::already_connected)
-		LOG(LL_Info, LC_Local, "OnConnect error already_connected");
-	else if (error)
+	namespace BIP = boost::asio::ip;
+
+	std::shared_ptr<BIP::tcp::socket> socket = std::make_shared<BIP::tcp::socket>(m_disp.iosvc());
+	std::shared_ptr<BIP::tcp::resolver> resolver = std::make_shared<BIP::tcp::resolver>(m_disp.iosvc());
+	BIP::tcp::resolver::query query(address, port);
+
+	socket->open(boost::asio::ip::tcp::v4());
+	socket->set_option(boost::asio::socket_base::keep_alive(true));
+
+	auto connectHandler = [socket, this]
+		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
 	{
-		if (m_flushMsg)
-		{
-			m_flushMsg->cancelMsg();
-			m_flushMsg.reset();
-		}
+		if (errorCode)
+			onConnectionError("Could not connect: " + errorCode.message());
+		else if (it == BIP::tcp::resolver::iterator())
+			onConnectionError("Could not connect!");
+		else
+			onConnected(std::move(socket));
+	};
 
-		enqueueWithDelay<ReconnectEvt>(1000);
-	}
-	else
+	auto resolveHandler = [socket, resolver, connectHandler, this]
+		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
 	{
-		LOG(LL_Info, LC_Local, "Connected to pSub bus");
+		if (errorCode)
+			onConnectionError("Could not resolve address: " + errorCode.message());
+		else
+			boost::asio::async_connect(*socket, it, BIP::tcp::resolver::iterator(), connectHandler);
+	};
 
-		initNewFile();
-		subscribe({ "*" });
+	resolver->async_resolve(query, resolveHandler);
+}
 
-		m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+void PSubLocal::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
+{
+	LOG(LL_Info, LC_Local, "Connected to pSub bus");
+
+	initNewFile();
+	subscribe({ "*" });
+
+	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+}
+
+void PSubLocal::onConnectionError(const std::string& error)
+{
+	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
+	if (m_flushMsg)
+	{
+		m_flushMsg->cancelMsg();
+		m_flushMsg.reset();
 	}
+
+	enqueueWithDelay<ReconnectEvt>(1000);
 }
 
 bool PSubLocal::initNewFile(void)
@@ -176,8 +206,16 @@ void PSubLocal::start()
 
 	m_running = true;
 
-	m_sock.close();
-	m_sock.async_connect(m_disp.pSubAddr(), boost::bind(&PSubLocal::OnConnect, this, BA::placeholders::error));
+	if (!m_sockptr)
+		m_sockptr.reset(new BA::ip::tcp::socket(m_disp.iosvc()));
+	else
+		m_sockptr->close();
+
+	std::string::size_type i = m_disp.pSubAddr().find(':');
+	if (i == std::string::npos)
+		connect(m_disp.pSubAddr(), "3101");
+	else
+		connect(m_disp.pSubAddr().substr(0, i), m_disp.pSubAddr().substr(i + 1));
 }
 
 void PSubLocal::stop()
@@ -186,8 +224,8 @@ void PSubLocal::stop()
 
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
-	if (m_running)
-		m_sock.close();
+	//if (m_running)
+	//	m_sock.close();
 
 	if (m_strm.good())
 		m_strm.close();

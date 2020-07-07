@@ -21,6 +21,8 @@
 extern HANDLE g_exitEvent;
 #endif
 
+namespace BA = boost::asio;
+
 namespace Logging
 {
 	const uint32_t LC_Task = 0x0001;
@@ -45,7 +47,7 @@ class Logger_Dispatcher
 	std::thread m_sockThread;
 	VEvent m_exitEvt;
 	void socketThread();
-	boost::asio::ip::tcp::endpoint m_pubsubaddr;
+	std::string m_pubsubaddr;
 	boost::asio::io_service m_iosvc;
 	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
 	void sendBuffer(const std::string& buff)
@@ -80,7 +82,9 @@ class Logger_Dispatcher
 	//curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
 	bool matchEvent(const LogConfig::event_string_t& ev, const std::string& payload);
 
-	void OnConnect(const boost::system::error_code& error);
+	void connect(const std::string& address, const std::string& port);
+	void onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket);
+	void onConnectionError(const std::string& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
 public:
@@ -92,7 +96,7 @@ public:
 
 	const LogConfig::Logger& cfg() const { return m_cfg; }
 	boost::asio::io_service& iosvc() { return m_iosvc; }
-	boost::asio::ip::tcp::endpoint pSubAddr(void) { return m_pubsubaddr; }
+	const std::string& pSubAddr(void) const { return m_pubsubaddr; }
 
 	void processMsg(const PubSub::Message& m);
 
