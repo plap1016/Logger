@@ -239,6 +239,8 @@ void Logger_Dispatcher::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& 
 
 	resetPSub();
 
+	m_sockptr = socket;
+
 	// Subscribe to stuff
 	subscribe(SUB_CFG);
 	subscribe(SUB_SHARED_CFG);

@@ -123,6 +123,8 @@ void PSubLocal::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
 {
 	LOG(LL_Info, LC_Local, "Connected to pSub bus");
 
+	m_sockptr = socket;
+
 	initNewFile();
 	subscribe({ "*" });
 
