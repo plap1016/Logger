@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <string>
 #include <sstream>
 #include <set>
@@ -66,7 +66,7 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 		}
 		catch (const std::exception& ex)
 		{
-			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset");
+			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset: " << ex.what());
 			LOG(LL_Dump, LC_Local, readBuff);
 		}
 		m_sockptr->async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
@@ -263,10 +263,16 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 
 	m_strm << tdiff3.count() << " " << m.age << " " << m.ttl << " ";
 
-	for (uint32_t p : m.postmarks)
-		m_strm << p << " ";
+	//for (uint32_t p : m.postmarks)
+	//	m_strm << p << " ";
+	for (std::vector<uint32_t>::size_type i = 0; i < m.postmarks.size(); ++i)
+	{
+		m_strm << m.postmarks[i];
+		if (i + 1 < m.postmarks.size())
+			m_strm << ',';
+	}
 
-	m_strm << PubSub::toString(m.subject) << " " << base64 << std::endl;
+	m_strm << " " << PubSub::toString(m.subject) << " " << base64 << std::endl;
 
 	if (m_disp.cfg().MaxFileEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxFileEventCount())
 	{
