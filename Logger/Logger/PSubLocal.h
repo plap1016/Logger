@@ -28,6 +28,8 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	Logger_Dispatcher& m_disp;
 
 	uint32_t m_evtCount = 0;
+	uint32_t m_evtMax = 1000000; // Sane default but should be overridden by default config anyway
+	uint32_t m_flushSec = 3600;  // As above
 
 	std::recursive_mutex m_lk;
 	ogzstream m_strm;
@@ -38,6 +40,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	//BA::ip::tcp::socket m_sock;
 	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
 	bool m_running;
+	void receivePSub(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue(msg); }
 	void sendBuffer(const std::string& buff)
 	{
 		boost::system::error_code error = BA::error::broken_pipe;

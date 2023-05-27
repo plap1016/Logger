@@ -50,6 +50,7 @@ class Logger_Dispatcher
 	std::string m_pubsubaddr;
 	boost::asio::io_service m_iosvc;
 	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
+	void receivePSub(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue(msg); }
 	void sendBuffer(const std::string& buff)
 	{
 		boost::system::error_code error = boost::asio::error::broken_pipe;
@@ -60,7 +61,7 @@ class Logger_Dispatcher
 	};
 
 	std::recursive_mutex m_dispLock;
-	LogConfig::Logger m_cfg;
+	loggercfg::Logger m_cfg;
 	void configure(const std::string& cfgStr);
 	bool haveCfg = false;
 
@@ -80,7 +81,7 @@ class Logger_Dispatcher
 	//bool upload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath, long timeout, long tries);
 	//bool sftpResumeUpload(CURL *curlhandle, const std::string& remotepath, const std::string& localpath);
 	//curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
-	bool matchEvent(const LogConfig::event_string_t& ev, const std::string& payload);
+	bool matchEvent(const loggercfg::event_string_t& ev, const std::string& payload);
 
 	void connect(const std::string& address, const std::string& port);
 	void onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket);
@@ -88,13 +89,13 @@ class Logger_Dispatcher
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
 public:
-	Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr = "127.0.0.1");
+	explicit Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr = "127.0.0.1");
 	~Logger_Dispatcher();
 
 	//void start();
 	//void stop();
 
-	const LogConfig::Logger& cfg() const { return m_cfg; }
+	const loggercfg::Logger& cfg() const { return m_cfg; }
 	boost::asio::io_service& iosvc() { return m_iosvc; }
 	const std::string& pSubAddr(void) const { return m_pubsubaddr; }
 

@@ -1,6 +1,3 @@
-#ifdef WIN32
-#include "stdafx.h"
-#endif
 #include "PSubLocal.h"
 #include "Logger_Dispatcher.h"
 #include "configuration.hxx"
@@ -53,7 +50,7 @@ template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
 	std::unique_lock<std::recursive_mutex> s(m_lk);
-	m_strm.rdbuf()->syncflush();
+	m_strm.flush();
 }
 
 void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
@@ -194,8 +191,7 @@ bool PSubLocal::initNewFile(void)
 
 	m_start_time = m_time_marker = qpc_clock::now();
 
-	if (m_disp.cfg().FlushSec_present() && m_disp.cfg().FlushSec() > 0)
-		m_flushMsg = enqueueWithDelay<FlushEvt>(m_disp.cfg().FlushSec(), true);
+	m_flushMsg = enqueueWithDelay<FlushEvt>(m_flushSec, true);
 
 	LOG(LL_Info, LC_Local, "Created new log file " << m_fname);
 	return m_strm.good();
@@ -207,6 +203,10 @@ void PSubLocal::start()
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
 	m_running = true;
+
+	// Store local copies of flush and new file counters
+	m_evtMax = m_disp.cfg().NewFile_present() ? m_disp.cfg().NewFile().Count() : loggercfg::NewFile::Count_default_value();
+	m_flushSec = m_disp.cfg().Flush_present() ? m_disp.cfg().Flush().IntervalS() : loggercfg::Flush::IntervalS_default_value();
 
 	if (!m_sockptr)
 		m_sockptr.reset(new BA::ip::tcp::socket(m_disp.iosvc()));
@@ -274,7 +274,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 
 	m_strm << " " << PubSub::toString(m.subject) << " " << base64 << std::endl;
 
-	if (m_disp.cfg().MaxFileEventCount_present() && ++m_evtCount >= m_disp.cfg().MaxFileEventCount())
+	if (++m_evtCount >= m_evtMax)
 	{
 		initNewFile();
 		m_evtCount = 0;

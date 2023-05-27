@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<xs:schema id="LogConfig"
-		   targetNamespace="LogConfig"
-		   xmlns:mstns="LogConfig"
+<xs:schema id="loggercfg"
+		   targetNamespace="loggercfg"
+		   xmlns:mstns="loggercfg"
 		   xmlns:xs="http://www.w3.org/2001/XMLSchema"
 >
 
@@ -20,8 +20,22 @@
 				<xs:element name="LogPath" type="xs:string"/>
 				<xs:element name="FileNameRoot" type="xs:string"/>
 				<xs:element name="MaxFileCount" type="xs:unsignedInt"/>
-				<xs:element name="FlushSec" type="xs:unsignedInt" minOccurs="0"/>
-				<xs:element name="MaxFileEventCount" type="xs:unsignedInt" minOccurs="0"/>
+				<xs:element name="NewFile" minOccurs="0">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="Event" type="mstns:event_string_t" minOccurs="0" maxOccurs="unbounded"/>
+						</xs:sequence>
+						<xs:attribute name="Count" type="xs:unsignedInt" default="1000000"/>
+					</xs:complexType>
+				</xs:element>
+				<xs:element name="Flush" minOccurs="0">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="Event" type="mstns:event_string_t" minOccurs="0" maxOccurs="unbounded"/>
+						</xs:sequence>
+						<xs:attribute name="IntervalS" type="xs:unsignedInt" default="600"/>
+					</xs:complexType>
+				</xs:element>
 				<xs:element name="FtpUpload" minOccurs="0">
 					<xs:complexType>
 						<xs:sequence>

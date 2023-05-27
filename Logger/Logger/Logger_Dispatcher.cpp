@@ -1,8 +1,4 @@
-#ifdef WIN32
-#include "stdafx.h"
-#else
 #define fopen_s(FD, FPATH, FLAGS) *FD = fopen(FPATH, FLAGS);
-#endif // WIN32
 
 #include "Logger_Dispatcher.h"
 #include "configuration-pimpl.hxx"
@@ -88,7 +84,7 @@ Logger_Dispatcher::~Logger_Dispatcher()
 
 void Logger_Dispatcher::configure(const std::string& cfgStr)
 {
-	LogConfig::Logger_paggr s;
+	loggercfg::Logger_paggr s;
 	xml_schema::document_pimpl d(s.root_parser(), s.root_name());
 
 	std::istringstream cfgstrm(cfgStr);
@@ -110,11 +106,19 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 			m_local.reset(new PSubLocal(*this));
 			m_local->start();
 
+			if (m_cfg.Flush_present())
+				for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
+					subscribe(PubSub::parseSubject(e));
+
+			if (m_cfg.NewFile_present())
+				for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
+					subscribe(PubSub::parseSubject(e));
+
 			if (m_cfg.FtpUpload_present())
-				for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+				for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
 					subscribe(PubSub::parseSubject(e));
 			else
-				m_haveSysCfg = true; // Don't bother waiting for or requesting Shared config
+				m_haveSysCfg = true; // Don't bother waiting for or requesting Shared config since we wont use it
 
 			haveCfg = true;
 		}
@@ -254,6 +258,20 @@ void Logger_Dispatcher::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& 
 
 	if (!haveCfg)
 		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
+	else
+	{
+		if (m_cfg.Flush_present())
+			for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
+				subscribe(PubSub::parseSubject(e));
+
+		if (m_cfg.NewFile_present())
+			for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
+				subscribe(PubSub::parseSubject(e));
+
+		if (m_cfg.FtpUpload_present())
+			for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
+				subscribe(PubSub::parseSubject(e));
+	}
 
 	if (m_here)
 		m_here->cancelMsg();
@@ -357,14 +375,32 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 	else
 	{
 		if (m_cfg.FtpUpload_present())
-			for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
+			for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
 				if (PubSub::match(PubSub::parseSubject(e), m.subject) && matchEvent(e, m.payload))
 				{
-					// do ftp upload
 					LOG(Logging::LL_Info, Logging::LC_Logger, "Upload trigger \"" << PubSub::toString(m.subject) << "\" detected");
 					ftpUpload();
 					break;
 				}
+
+		if (m_cfg.Flush_present())
+			for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
+				if (PubSub::match(PubSub::parseSubject(e), m.subject) && matchEvent(e, m.payload))
+				{
+					LOG(Logging::LL_Info, Logging::LC_Logger, "Flush trigger \"" << PubSub::toString(m.subject) << "\" detected");
+					m_local->enqueue<PSubLocal::FlushEvt>();
+					break;
+				}
+
+		if (m_cfg.NewFile_present())
+			for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
+				if (PubSub::match(PubSub::parseSubject(e), m.subject) && matchEvent(e, m.payload))
+				{
+					LOG(Logging::LL_Info, Logging::LC_Logger, "New file trigger \"" << PubSub::toString(m.subject) << "\" detected");
+					m_local->enqueue<NewfileEvt>();
+					break;
+				}
+
 	}
 }
 
@@ -394,14 +430,14 @@ void Logger_Dispatcher::ftpUpload()
 		rc = libssh2_init(0);
 		if (rc)
 		{
-			LOG(Logging::LL_Debug, Logging::LC_Logger, "libssh2 initialization failed " << rc);
+			LOG(Logging::LL_Warning, Logging::LC_Logger, "libssh2 initialization failed " << rc);
 			return;
 		}
 
 		session = libssh2_session_init();
 		if (session == NULL)
 		{
-			LOG(Logging::LL_Debug, Logging::LC_Logger, "libssh2 session initialization failed");
+			LOG(Logging::LL_Warning, Logging::LC_Logger, "libssh2 session initialization failed");
 			return;
 		}
 
@@ -418,7 +454,7 @@ void Logger_Dispatcher::ftpUpload()
 		errcode = getaddrinfo(m_cfg.FtpUpload().Host().c_str(), NULL, &hints, &res);
 		if (errcode != 0)
 		{
-			LOG(Logging::LL_Debug, Logging::LC_Logger, "getaddrinfo fail: " << errcode);
+			LOG(Logging::LL_Warning, Logging::LC_Logger, "getaddrinfo fail: " << errcode);
 			return;
 		}
 
@@ -431,7 +467,7 @@ void Logger_Dispatcher::ftpUpload()
 				sin.sin_port = htons(22);
 				if (::connect(sock, (struct sockaddr*)(&sin), sizeof(struct sockaddr_in)) == 0)
 				{
-					LOG(Logging::LL_Debug, Logging::LC_Logger, "Connected");
+					LOG(Logging::LL_Info, Logging::LC_Logger, "Connected");
 					break;
 				}
 			}
@@ -529,7 +565,7 @@ void Logger_Dispatcher::ftpUpload()
 					fopen_s(&loc, d.path().string().c_str(), "rb");
 					if (fseek(loc, attr.filesize, SEEK_SET))
 					{
-						LOG(Logging::LL_Info, Logging::LC_Logger, "Remote file already larger than local ");
+						LOG(Logging::LL_Warning, Logging::LC_Logger, "Remote file already larger than local ");
 						continue;
 					}
 
@@ -563,7 +599,7 @@ void Logger_Dispatcher::ftpUpload()
 
 					if (rc == 0)
 					{
-						LOG(Logging::LL_Debug, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
+						LOG(Logging::LL_Info, Logging::LC_Logger, "Upload success. Deleting " << d.path().filename());
 						BF::remove(d.path());
 					}
 				}
@@ -745,7 +781,7 @@ void Logger_Dispatcher::ftpUpload()
 //	return c < tries;
 //}
 
-bool Logger_Dispatcher::matchEvent(const LogConfig::event_string_t& ev, const std::string& payload)
+bool Logger_Dispatcher::matchEvent(const loggercfg::event_string_t& ev, const std::string& payload)
 {
 	pugi::xpath_value_type xPathType = pugi::xpath_type_string;
 	bool found = true;
