@@ -400,7 +400,6 @@ void Logger_Dispatcher::processMsg(const PubSub::Message& m)
 					m_local->enqueue<NewfileEvt>();
 					break;
 				}
-
 	}
 }
 

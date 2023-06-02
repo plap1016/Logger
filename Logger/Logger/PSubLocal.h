@@ -58,7 +58,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	void onConnectionError(const std::string& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
-	void pSubUnknownMsg(uint8_t type, const std::string& payload) {}
+	void pSubUnknownMsg(uint8_t /* type */, const std::string& /* payload */) {}
 
 	bool initNewFile(void);
 
