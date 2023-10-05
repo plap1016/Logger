@@ -57,6 +57,7 @@ Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& p
 	, Logging::LogClient(log)
 	, m_sockThread()
 	, m_pubsubaddr(psubAddr)
+	, m_sock(m_iosvc)
 {
 	m_sockThread = std::thread([=] { socketThread(); });
 
@@ -186,11 +187,6 @@ void Logger_Dispatcher::socketThread()
 
 void Logger_Dispatcher::start()
 {
-	if (!m_sockptr)
-		m_sockptr.reset(new BA::ip::tcp::socket(m_iosvc));
-	else
-		m_sockptr->close();
-
 	std::string::size_type i = m_pubsubaddr.find(':');
 	if (i == std::string::npos)
 		connect(m_pubsubaddr, "3101");
@@ -207,43 +203,35 @@ void Logger_Dispatcher::connect(const std::string& address, const std::string& p
 {
 	namespace BIP = boost::asio::ip;
 
-	std::shared_ptr<BIP::tcp::socket> socket = std::make_shared<BIP::tcp::socket>(m_iosvc);
 	std::shared_ptr<BIP::tcp::resolver> resolver = std::make_shared<BIP::tcp::resolver>(m_iosvc);
-	BIP::tcp::resolver::query query(address, port);
 
-	socket->open(boost::asio::ip::tcp::v4());
-	socket->set_option(boost::asio::socket_base::keep_alive(true));
-
-	auto connectHandler = [socket, this]
-		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
+	auto connectHandler = [this] (const boost::system::error_code& errorCode, const BIP::tcp::endpoint& ep)
 	{
 		if (errorCode)
 			onConnectionError("Could not connect: " + errorCode.message());
-		else if (it == BIP::tcp::resolver::iterator())
-			onConnectionError("Could not connect!");
 		else
-			onConnected(std::move(socket));
+			onConnected();
 	};
 
-	auto resolveHandler = [socket, resolver, connectHandler, this]
-		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
+	auto resolveHandler = [resolver, connectHandler, this]
+		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::results_type results)
 	{
 		if (errorCode)
 			onConnectionError("Could not resolve address: " + errorCode.message());
 		else
-			boost::asio::async_connect(*socket, it, BIP::tcp::resolver::iterator(), connectHandler);
+			boost::asio::async_connect(m_sock, results, connectHandler);
 	};
 
-	resolver->async_resolve(query, resolveHandler);
+	resolver->async_resolve(address, port, resolveHandler);
 }
 
-void Logger_Dispatcher::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
+void Logger_Dispatcher::onConnected()
 {
 	LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
 
 	resetPSub();
 
-	m_sockptr = socket;
+	m_sock.set_option(boost::asio::socket_base::keep_alive(true));
 
 	// Subscribe to stuff
 	subscribe(SUB_CFG);
@@ -277,7 +265,7 @@ void Logger_Dispatcher::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& 
 		m_here->cancelMsg();
 	m_here = enqueueWithDelay<evHereTime>(2000, true);
 
-	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+	m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 }
 
 void Logger_Dispatcher::onConnectionError(const std::string& error)
@@ -299,7 +287,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error " << ex.what() << " processing pSub buffer. Read buffers reset");
 			LOG(Logging::LL_Dump, Logging::LC_PubSub, readBuff);
 		}
-		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+		m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 	}
 	else
 	{

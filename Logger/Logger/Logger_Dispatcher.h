@@ -49,15 +49,15 @@ class Logger_Dispatcher
 	void socketThread();
 	std::string m_pubsubaddr;
 	boost::asio::io_service m_iosvc;
-	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
+	boost::asio::ip::tcp::socket m_sock;
 	void receivePSub(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue(msg); }
 	void sendBuffer(const std::string& buff)
 	{
 		boost::system::error_code error = boost::asio::error::broken_pipe;
 
-		boost::asio::write(*m_sockptr, boost::asio::buffer(frameMsg(buff)), error);
+		boost::asio::write(m_sock, boost::asio::buffer(frameMsg(buff)), error);
 		if (error)
-			m_sockptr->close();
+			m_sock.close();
 	};
 
 	std::recursive_mutex m_dispLock;
@@ -84,7 +84,7 @@ class Logger_Dispatcher
 	bool matchEvent(const loggercfg::event_string_t& ev, const std::string& payload);
 
 	void connect(const std::string& address, const std::string& port);
-	void onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket);
+	void onConnected();
 	void onConnectionError(const std::string& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
