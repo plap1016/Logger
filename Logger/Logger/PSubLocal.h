@@ -34,8 +34,8 @@ class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PS
 	std::recursive_mutex m_lk;
 	ogzstream m_strm;
 	std::string m_fname;
-	qpc_clock::time_point m_start_time;
-	qpc_clock::time_point m_time_marker;
+	std::chrono::steady_clock::time_point m_start_time;
+	std::chrono::steady_clock::time_point m_time_marker;
 
 	//BA::ip::tcp::socket m_sock;
 	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;

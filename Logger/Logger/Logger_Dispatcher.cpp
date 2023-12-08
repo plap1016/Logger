@@ -49,8 +49,8 @@ HANDLE g_exitEvent;
 
 extern std::string g_version;
 
-const int32_t TTL_LONGTIME = -43200000; // up to 12 hrs or until superceded
-const int32_t TTL_STATUS = 60000;
+constexpr qpc_clock::duration TTL_LONGTIME{std::chrono::hours(-12)}; // up to 12 hrs or until superseded
+constexpr qpc_clock::duration TTL_STATUS{std::chrono::minutes(1)};
 
 Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr)
 	: Task::TActiveTask<Logger_Dispatcher>(2)
@@ -245,7 +245,7 @@ void Logger_Dispatcher::onConnected()
 	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
 	if (!haveCfg)
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(std::chrono::seconds(3));
 	else
 	{
 		if (m_cfg.Flush_present())
@@ -263,7 +263,7 @@ void Logger_Dispatcher::onConnected()
 
 	if (m_here)
 		m_here->cancelMsg();
-	m_here = enqueueWithDelay<evHereTime>(2000, true);
+	m_here = enqueueWithDelay<evHereTime>(std::chrono::seconds(2), true);
 
 	m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
 }
@@ -271,7 +271,7 @@ void Logger_Dispatcher::onConnected()
 void Logger_Dispatcher::onConnectionError(const std::string& error)
 {
 	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
-	enqueueWithDelay<ReconnectEvt>(1000);
+	enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
 }
 
 void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
@@ -299,7 +299,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 			m_here->cancelMsg();
 			m_here.reset();
 		}
-		enqueueWithDelay<ReconnectEvt>(1000);
+		enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
 	}
 }
 
@@ -312,7 +312,7 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferre
 		sendMsg(PubSub::Message(PUB_SHARED_CFG_REQUEST, 0));
 
 	if (!(haveCfg && m_haveSysCfg))
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3000);
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(std::chrono::seconds(3));
 
 }
 
@@ -515,7 +515,19 @@ void Logger_Dispatcher::ftpUpload()
 
 		BF::path p(cfg().LogPath());
 		std::string fnroot = cfg().FileNameRoot();
-		std::string destpath = /*m_cfg.FtpUpload().Host() +*/ m_cfg.FtpUpload().path() + '/' + (m_haveSysCfg ? std::to_string(m_syscfg.TerminalID()) + '_' : "");
+		auto fnprefix = [&]()
+		{
+			if (m_haveSysCfg)
+			{
+				if (m_syscfg.uuid_present())
+					return m_syscfg.uuid() + '_';
+
+				if (!m_syscfg.TerminalID().empty())
+					return m_syscfg.TerminalID() + '_';
+			}
+			return std::string();
+		};
+		std::string destpath = m_cfg.FtpUpload().path() + '/' + fnprefix();
 		for (BF::directory_entry d : BF::directory_iterator(p))
 		{
 			if (d.path().filename().empty())
@@ -528,6 +540,7 @@ void Logger_Dispatcher::ftpUpload()
 				LOG(Logging::LL_Info, Logging::LC_Logger, "Uploading " << d.path().filename());
 
 				LIBSSH2_SFTP_HANDLE *sftp_handle;
+				libssh2_session_set_blocking(session, 1);
 
 				/* Request a file via SFTP */
 				sftp_handle = libssh2_sftp_open(sftp_session, destfname.c_str(),
@@ -559,6 +572,7 @@ void Logger_Dispatcher::ftpUpload()
 					char buff[0xFFFFu] = { 0 };
 					char* ptr = 0;
 					rc = -1;
+					libssh2_session_set_blocking(session, 0);
 					do
 					{
 						size_t nread = fread(buff, 1, sizeof(buff), loc);
@@ -572,6 +586,12 @@ void Logger_Dispatcher::ftpUpload()
 						{
 							/* write data in a loop until we block */
 							rc = libssh2_sftp_write(sftp_handle, buff, nread);
+
+							if (rc == 0 || rc == LIBSSH2_ERROR_EAGAIN) // Would have blocked or nothing sent
+							{
+								std::this_thread::sleep_for(std::chrono::milliseconds(500));
+								continue;
+							}
 
 							if (rc < 0)
 								break;

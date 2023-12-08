@@ -77,7 +77,7 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 		{
 			if (m_reconectMsg)
 				m_reconectMsg->cancelMsg();
-			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(1000);
+			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
 		}
 	}
 }
@@ -137,7 +137,7 @@ void PSubLocal::onConnectionError(const std::string& error)
 		m_flushMsg.reset();
 	}
 
-	enqueueWithDelay<ReconnectEvt>(1000);
+	enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
 }
 
 bool PSubLocal::initNewFile(void)
@@ -189,9 +189,9 @@ bool PSubLocal::initNewFile(void)
 	if (m_strm.good())
 		m_strm << "START " << std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count() << std::endl;
 
-	m_start_time = m_time_marker = qpc_clock::now();
+	m_start_time = m_time_marker = std::chrono::steady_clock::now();
 
-	m_flushMsg = enqueueWithDelay<FlushEvt>(m_flushSec, true);
+	m_flushMsg = enqueueWithDelay<FlushEvt>(std::chrono::seconds(m_flushSec), true);
 
 	LOG(LL_Info, LC_Local, "Created new log file " << m_fname);
 	return m_strm.good();
@@ -247,7 +247,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	LOG(LL_Debug, LC_Local, "Received msg " << PubSub::toString(m.subject, str));
 	std::unique_lock<std::recursive_mutex> s(m_lk);
 
-	qpc_clock::time_point now = qpc_clock::now();
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	std::chrono::milliseconds tdiff1 = std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - m_start_time);
 	std::chrono::milliseconds tdiff2 = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_start_time);
 	std::chrono::milliseconds tdiff3 = std::chrono::duration_cast<std::chrono::milliseconds>(tdiff2 - tdiff1);
@@ -261,7 +261,7 @@ void PSubLocal::processMsg(const PubSub::Message& m)
 	std::string base64(it_base64_t(m.payload.begin()), it_base64_t(m.payload.end()));
 	base64.append(writePaddChars, '=');
 
-	m_strm << tdiff3.count() << " " << m.age << " " << m.ttl << " ";
+	m_strm << tdiff3.count() << " " << m.age.count() << " " << m.ttl.count() << " ";
 
 	//for (uint32_t p : m.postmarks)
 	//	m_strm << p << " ";
