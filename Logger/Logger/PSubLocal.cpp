@@ -66,7 +66,7 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset: " << ex.what());
 			LOG(LL_Dump, LC_Local, readBuff);
 		}
-		m_sockptr->async_read_some(boost::asio::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
 	}
 	else
 	{
@@ -77,7 +77,7 @@ void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_
 		{
 			if (m_reconectMsg)
 				m_reconectMsg->cancelMsg();
-			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
+			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(1s);
 		}
 	}
 }
@@ -125,7 +125,7 @@ void PSubLocal::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
 	initNewFile();
 	subscribe({ "*" });
 
-	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), boost::bind(&PSubLocal::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
 }
 
 void PSubLocal::onConnectionError(const std::string& error)
@@ -137,7 +137,7 @@ void PSubLocal::onConnectionError(const std::string& error)
 		m_flushMsg.reset();
 	}
 
-	enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
+	enqueueWithDelay<ReconnectEvt>(1s);
 }
 
 bool PSubLocal::initNewFile(void)

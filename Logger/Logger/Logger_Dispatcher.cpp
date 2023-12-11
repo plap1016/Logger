@@ -245,7 +245,7 @@ void Logger_Dispatcher::onConnected()
 	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
 
 	if (!haveCfg)
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(std::chrono::seconds(3));
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3s);
 	else
 	{
 		if (m_cfg.Flush_present())
@@ -263,15 +263,15 @@ void Logger_Dispatcher::onConnected()
 
 	if (m_here)
 		m_here->cancelMsg();
-	m_here = enqueueWithDelay<evHereTime>(std::chrono::seconds(2), true);
+	m_here = enqueueWithDelay<evHereTime>(2s, true);
 
-	m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+	m_sock.async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
 }
 
 void Logger_Dispatcher::onConnectionError(const std::string& error)
 {
 	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
-	enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
+	enqueueWithDelay<ReconnectEvt>(1s);
 }
 
 void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
@@ -287,7 +287,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error " << ex.what() << " processing pSub buffer. Read buffers reset");
 			LOG(Logging::LL_Dump, Logging::LC_PubSub, readBuff);
 		}
-		m_sock.async_read_some(BA::buffer(readBuff, 1024), boost::bind(&Logger_Dispatcher::OnReadSome, this, BA::placeholders::error, BA::placeholders::bytes_transferred));
+		m_sock.async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
 	}
 	else
 	{
@@ -299,7 +299,7 @@ void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_
 			m_here->cancelMsg();
 			m_here.reset();
 		}
-		enqueueWithDelay<ReconnectEvt>(std::chrono::seconds(1));
+		enqueueWithDelay<ReconnectEvt>(1s);
 	}
 }
 
@@ -312,7 +312,7 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferre
 		sendMsg(PubSub::Message(PUB_SHARED_CFG_REQUEST, 0));
 
 	if (!(haveCfg && m_haveSysCfg))
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(std::chrono::seconds(3));
+		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3s);
 
 }
 
@@ -589,7 +589,7 @@ void Logger_Dispatcher::ftpUpload()
 
 							if (rc == 0 || rc == LIBSSH2_ERROR_EAGAIN) // Would have blocked or nothing sent
 							{
-								std::this_thread::sleep_for(std::chrono::milliseconds(500));
+								std::this_thread::sleep_for(500ms);
 								continue;
 							}
 
