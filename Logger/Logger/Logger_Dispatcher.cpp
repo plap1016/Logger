@@ -97,11 +97,6 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 		if (!haveCfg)
 		{
 			d.parse(cfgstrm);
-
-			//if (m_cfg.FtpUpload_present())
-			//	for (const LogConfig::event_string_t& e : m_cfg.FtpUpload().Event())
-			//		unsubscribe(PubSub::parseSubject(e));
-
 			s.post()->_copy(m_cfg);
 
 			m_local.reset(new PSubLocal(*this));

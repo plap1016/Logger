@@ -7,7 +7,7 @@
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="gcc" />
@@ -20,7 +20,7 @@
 				</Linker>
 			</Target>
 			<Target title="Release">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="gcc" />
@@ -34,7 +34,7 @@
 				</Linker>
 			</Target>
 			<Target title="ARM_Debug">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="arm-elf-gcc" />
@@ -48,7 +48,7 @@
 				</Linker>
 			</Target>
 			<Target title="ARM_Release">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="arm-elf-gcc" />
@@ -63,7 +63,7 @@
 				</Linker>
 			</Target>
 			<Target title="IVU_Debug">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="poky_compiler_for_ivu" />
@@ -78,7 +78,7 @@
 				</Linker>
 			</Target>
 			<Target title="IVU_Release">
-				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/casloggerd" prefix_auto="1" extension_auto="1" />
+				<Option output="$(WORKSPACEDIR)/$(TARGET_NAME)/loggerd" prefix_auto="1" extension_auto="1" />
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="poky_compiler_for_ivu" />
