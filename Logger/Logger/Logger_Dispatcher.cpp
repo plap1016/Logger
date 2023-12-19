@@ -205,7 +205,7 @@ void Logger_Dispatcher::connect(const std::string& address, const std::string& p
 		if (errorCode)
 			onConnectionError("Could not connect: " + errorCode.message());
 		else
-			onConnected();
+			onConnected(ep);
 	};
 
 	auto resolveHandler = [resolver, connectHandler, this]
@@ -220,9 +220,9 @@ void Logger_Dispatcher::connect(const std::string& address, const std::string& p
 	resolver->async_resolve(address, port, resolveHandler);
 }
 
-void Logger_Dispatcher::onConnected()
+void Logger_Dispatcher::onConnected(const BA::ip::tcp::endpoint& ep)
 {
-	LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus");
+	LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus at " << ep);
 
 	resetPSub();
 

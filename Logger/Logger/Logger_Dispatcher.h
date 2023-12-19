@@ -84,7 +84,7 @@ class Logger_Dispatcher
 	bool matchEvent(const loggercfg::event_string_t& ev, const std::string& payload);
 
 	void connect(const std::string& address, const std::string& port);
-	void onConnected();
+	void onConnected(const BA::ip::tcp::endpoint& ep);
 	void onConnectionError(const std::string& error);
 	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
 
