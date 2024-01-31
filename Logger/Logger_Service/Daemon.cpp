@@ -27,28 +27,27 @@ void daemonize(char *rundir, char *pidfile);
 void usage();
 bool parseCmdLine(int argc, char *argv[]);
 
+bool g_exe{false};
 std::string g_psubaddr("127.0.0.1");
 std::string g_version = "1.1.8";
-//std::string g_name;
-bool g_exe(false);
 
 int pidFilehandle;
-std::string logfilen = DAEMON_NAME ".log";
+std::string logfilen{DAEMON_NAME ".log"};
 Logging::LogFile logfile, *plogfile(&logfile);
 VEvent stopEvent;
 
 void signal_handler(int sig)
 {
+	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Received " << strsignal(sig) << " signal.");
 	switch(sig)
 	{
 	case SIGHUP:
 		syslog(LOG_WARNING, "Received SIGHUP signal.");
 		break;
 	case SIGINT:
+	case SIGQUIT:
 	case SIGTERM:
-		syslog(LOG_INFO, "Daemon exiting");
 		daemonShutdown();
-		exit(EXIT_SUCCESS);
 		break;
 	default:
 		syslog(LOG_WARNING, "Unhandled signal %s", strsignal(sig));
@@ -58,24 +57,16 @@ void signal_handler(int sig)
 
 void daemonShutdown()
 {
+	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Shutting down");
+	syslog(LOG_INFO, "shutting down ");
 	stopEvent.set();
 	close(pidFilehandle);
 }
 
-void daemonize(const char *rundir, const char *pidfile)
+void signalSetup()
 {
-	int pid, sid, i;
-	char str[10];
 	struct sigaction newSigAction;
 	sigset_t newSigSet;
-
-	/* Check if parent process id is set */
-	if(getppid() == 1)
-	{
-		/* PPID exists, therefore we are already a daemon */
-		return;
-	}
-
 	/* Set signal mask - signals we want to block */
 	sigemptyset(&newSigSet);
 	sigaddset(&newSigSet, SIGCHLD);  /* ignore child - i.e. we don't need to wait for it */
@@ -93,7 +84,19 @@ void daemonize(const char *rundir, const char *pidfile)
 	sigaction(SIGHUP, &newSigAction, NULL);     /* catch hangup signal */
 	sigaction(SIGTERM, &newSigAction, NULL);    /* catch term signal */
 	sigaction(SIGINT, &newSigAction, NULL);     /* catch interrupt signal */
+}
 
+void daemonize(const char *rundir, const char *pidfile)
+{
+	int pid, sid, i;
+	char str[10];
+
+	/* Check if parent process id is set */
+	if(getppid() == 1)
+	{
+		/* PPID exists, therefore we are already a daemon */
+		return;
+	}
 
 	/* Fork*/
 	pid = fork();
@@ -170,6 +173,8 @@ void daemonize(const char *rundir, const char *pidfile)
 
 int main(int argc, char* argv[])
 {
+	logfilen = DAEMON_NAME ".log";
+
 	if (!parseCmdLine(argc, argv))
 		return -1;
 
@@ -187,10 +192,12 @@ int main(int argc, char* argv[])
 		syslog(LOG_INFO, "Daemon starting up");
 
 		/* Deamonize */
-		daemonize("/tmp/", "/tmp/loggerd.pid");
+		daemonize("/tmp/", "/tmp/" DAEMON_NAME ".pid");
 
 		syslog(LOG_INFO, "Daemon running");
 	}
+
+	signalSetup();
 
 	if (!logfilen.empty())
 		logfile.open(logfilen);
@@ -202,13 +209,18 @@ int main(int argc, char* argv[])
 		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "***** Command line parameter: " << argv[x]);
 	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "*************************************************************************************");
 
-	Logger_Dispatcher disp(logfile, g_psubaddr);
-
-	while(!stopEvent.timedwait(1000))
 	{
-		//syslog(LOG_INFO, "daemon says hello");
-		//boost::this_thread::sleep_for(1s);
+		Logger_Dispatcher disp(logfile, g_psubaddr);
+
+		while(!stopEvent.timedwait(10000))
+			syslog(LOG_INFO, DAEMON_NAME " alive");
+
+		LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "main loop finished. Stopping dispatcher");
 	}
+
+	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Shut down complete.  Exit");
+	syslog(LOG_INFO, "Shut down complete.  Exit");
+	exit(0);
 }
 
 bool parseCmdLine(int argc, char *argv[])
@@ -221,9 +233,6 @@ bool parseCmdLine(int argc, char *argv[])
 		usage();
 		return false;
 	}
-
-	//g_name = "PSubPClient_";
-	//g_name += argv[1];
 
 	plogfile->setLogLevel(Logging::LLSet_Info);
 	plogfile->setMaxFiles(5);
@@ -257,7 +266,7 @@ bool parseCmdLine(int argc, char *argv[])
 					g_exe = true;
 					break;
 				case 'b':
-					if (y == optlen - 1 && ++x < argc && argv[x][0] != L'-')
+					if (y == optlen - 1 && ++x < argc && argv[x][0] != '-')
 						g_psubaddr = argv[x];
 					else
 					{
@@ -267,7 +276,7 @@ bool parseCmdLine(int argc, char *argv[])
 					}
 					break;
 				case 'l': // specify log file
-					if (y == optlen - 1 && ++x < argc && argv[x][0] != L'-')
+					if (y == optlen - 1 && ++x < argc && argv[x][0] != '-')
 						logfilen = argv[x];
 					else
 					{
@@ -317,4 +326,3 @@ void usage()
 	cout << "\te.g.  -dt ignores the 'd' and sets the logging level to TRACE" << endl;
 	cout << "\t      -td ignores the 't' and sets the logging level to DEBUG" << endl;
 }
-
