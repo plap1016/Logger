@@ -336,7 +336,7 @@ template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evFtpUpload>
 	ftpUpload();
 }
 
-void Logger_Dispatcher::processMsg(const PubSub::Message& m)
+void Logger_Dispatcher::processMsg(PubSub::Message&& m)
 {
 	std::string str;
 	LOG(Logging::LL_Debug, Logging::LC_Logger, "Received msg " << PubSub::toString(m.subject, str));

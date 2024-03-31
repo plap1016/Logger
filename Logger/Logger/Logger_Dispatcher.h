@@ -99,7 +99,7 @@ public:
 	boost::asio::io_service& iosvc() { return m_iosvc; }
 	const std::string& pSubAddr(void) const { return m_pubsubaddr; }
 
-	void processMsg(const PubSub::Message& m);
+	void processMsg(PubSub::Message&& m);
 
 	struct evCfgDeferred;
 	struct evHereTime;

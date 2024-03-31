@@ -74,6 +74,6 @@ public:
 	struct FlushEvt;
 	template <typename T> void processEvent(void);
 
-	void processMsg(const PubSub::Message& m);
+	void processMsg(PubSub::Message&& m);
 };
 

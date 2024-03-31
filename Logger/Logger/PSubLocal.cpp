@@ -241,7 +241,7 @@ void PSubLocal::stop()
 
 using namespace boost::archive::iterators;
 
-void PSubLocal::processMsg(const PubSub::Message& m)
+void PSubLocal::processMsg(PubSub::Message&& m)
 {
 	std::string str;
 	LOG(LL_Debug, LC_Local, "Received msg " << PubSub::toString(m.subject, str));
