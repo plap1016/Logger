@@ -1,14 +1,4 @@
-#include <stdio.h>
-#include <signal.h>
-#include <syslog.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
+#include "Misc/signals.h"
 #include "Logging/Log.h"
 #include "Logger/Logger_Dispatcher.h"
 #include "Task/lock.h"
@@ -21,9 +11,6 @@ namespace Logging
 	template <> const char* getLCStr<LC_Service  >() { return "Service "; }
 }
 
-void daemonShutdown();
-void signal_handler(int sig);
-void daemonize(char *rundir, char *pidfile);
 void usage();
 bool parseCmdLine(int argc, char *argv[]);
 
@@ -31,145 +18,9 @@ bool g_exe{false};
 std::string g_psubaddr("127.0.0.1");
 std::string g_version = "1.1.8";
 
-int pidFilehandle;
 std::string logfilen{DAEMON_NAME ".log"};
 Logging::LogFile logfile, *plogfile(&logfile);
 VEvent stopEvent;
-
-void signal_handler(int sig)
-{
-	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Received " << strsignal(sig) << " signal.");
-	switch(sig)
-	{
-	case SIGHUP:
-		syslog(LOG_WARNING, "Received SIGHUP signal.");
-		break;
-	case SIGINT:
-	case SIGQUIT:
-	case SIGTERM:
-		daemonShutdown();
-		break;
-	default:
-		syslog(LOG_WARNING, "Unhandled signal %s", strsignal(sig));
-		break;
-	}
-}
-
-void daemonShutdown()
-{
-	LOGTO(plogfile, Logging::LL_Info, Logging::LC_Service, "Shutting down");
-	syslog(LOG_INFO, "shutting down ");
-	stopEvent.set();
-	close(pidFilehandle);
-}
-
-void signalSetup()
-{
-	struct sigaction newSigAction;
-	sigset_t newSigSet;
-	/* Set signal mask - signals we want to block */
-	sigemptyset(&newSigSet);
-	sigaddset(&newSigSet, SIGCHLD);  /* ignore child - i.e. we don't need to wait for it */
-	sigaddset(&newSigSet, SIGTSTP);  /* ignore Tty stop signals */
-	sigaddset(&newSigSet, SIGTTOU);  /* ignore Tty background writes */
-	sigaddset(&newSigSet, SIGTTIN);  /* ignore Tty background reads */
-	sigprocmask(SIG_BLOCK, &newSigSet, NULL);   /* Block the above specified signals */
-
-	/* Set up a signal handler */
-	newSigAction.sa_handler = signal_handler;
-	sigemptyset(&newSigAction.sa_mask);
-	newSigAction.sa_flags = 0;
-
-	/* Signals to handle */
-	sigaction(SIGHUP, &newSigAction, NULL);     /* catch hangup signal */
-	sigaction(SIGTERM, &newSigAction, NULL);    /* catch term signal */
-	sigaction(SIGINT, &newSigAction, NULL);     /* catch interrupt signal */
-}
-
-void daemonize(const char *rundir, const char *pidfile)
-{
-	int pid, sid, i;
-	char str[10];
-
-	/* Check if parent process id is set */
-	if(getppid() == 1)
-	{
-		/* PPID exists, therefore we are already a daemon */
-		return;
-	}
-
-	/* Fork*/
-	pid = fork();
-
-	if(pid < 0)
-	{
-		/* Could not fork */
-		exit(EXIT_FAILURE);
-	}
-
-	if(pid > 0)
-	{
-		/* Child created ok, so exit parent process */
-		printf("Child process created: %d\n", pid);
-		exit(EXIT_SUCCESS);
-	}
-
-	/* Child continues */
-
-	umask(027); /* Set file permissions 750 */
-
-	/* Get a new process group */
-	sid = setsid();
-
-	if(sid < 0)
-		exit(EXIT_FAILURE);
-
-	/* close all descriptors */
-	for(i = getdtablesize(); i >= 0; --i)
-		close(i);
-
-	/* Route I/O connections */
-	i = open("/dev/null", O_RDWR);
-	dup2 (i, STDIN_FILENO);
-	dup2 (i, STDOUT_FILENO);
-	dup2 (i, STDERR_FILENO);
-	close(i);
-
-	if (chdir(rundir) == -1)
-	{
-		syslog(LOG_INFO, "Could not change running directory to %s", rundir);
-		exit(EXIT_FAILURE);
-	}
-
-	/* Ensure only one copy */
-	pidFilehandle = open(pidfile, O_RDWR | O_CREAT, 0600);
-
-	if(pidFilehandle == -1)
-	{
-		/* Couldn't open lock file */
-		syslog(LOG_INFO, "Could not open PID lock file %s, exiting", pidfile);
-		exit(EXIT_FAILURE);
-	}
-
-	/* Try to lock file */
-	if(lockf(pidFilehandle, F_TLOCK, 0) == -1)
-	{
-		/* Couldn't get lock on lock file */
-		syslog(LOG_INFO, "Could not lock PID lock file %s, exiting", pidfile);
-		exit(EXIT_FAILURE);
-	}
-
-	/* Get and format PID */
-	sprintf(str, "%d\n", getpid());
-
-	/* write pid to lockfile */
-	if (write(pidFilehandle, str, strlen(str)) == -1)
-	{
-		/* Couldn't get lock on lock file */
-		syslog(LOG_INFO, "Could not write to PID lock file %s, exiting", pidfile);
-		exit(EXIT_FAILURE);
-	}
-}
 
 int main(int argc, char* argv[])
 {
