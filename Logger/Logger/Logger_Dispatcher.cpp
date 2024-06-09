@@ -7,9 +7,6 @@
 #include "pugixml/pugixml.hpp"
 
 #include <stdint.h>
-#include <boost/asio.hpp>
-#include <boost/bind/bind.hpp>
-#include <boost/optional.hpp>
 #include <boost/filesystem.hpp>
 
 #include <string>
@@ -21,22 +18,15 @@
 namespace Logging
 {
 	template <> const char* getLCStr<LC_Task     >() { return "Task    "; }
-	template <> const char* getLCStr<LC_PubSub   >() { return "PubSub  "; }
-	template <> const char* getLCStr<LC_TcpConn  >() { return "TcpConn "; }
 	template <> const char* getLCStr<LC_Local    >() { return "Local   "; }
 	template <> const char* getLCStr<LC_Logger   >() { return "Logger  "; }
 }
 
 using namespace Logging;
 
-const PubSub::Subject PUB_ALIVE{ "Alive", "Logger" };
-const PubSub::Subject PUB_HERE{ "Here", "Logger" };
-const PubSub::Subject PUB_DEAD{ "Dead", "Logger" };
 const PubSub::Subject SUB_CFG_ALIVE{ "Alive", "CFG" };
 const PubSub::Subject SUB_CFG{ "CFG", "Logger" };
 const PubSub::Subject SUB_SHARED_CFG{ "CFG", "Shared" };
-const PubSub::Subject PUB_CFG_REQUEST{ "CFG", "Request", "Logger" };
-const PubSub::Subject PUB_SHARED_CFG_REQUEST{ "CFG", "Request", "Shared" };
 
 const PubSub::Subject SUB_NEW_FILE{ "Logger", "Newfile" };
 const PubSub::Subject SUB_FLUSH_FILE{ "Logger", "Flush" };
@@ -47,7 +37,6 @@ const PubSub::Subject SUB_DIE{ "Die", "Logger" };
 HANDLE g_exitEvent;
 #endif
 
-extern std::string g_version;
 
 constexpr qpc_clock::duration TTL_LONGTIME{std::chrono::hours(-12)}; // up to 12 hrs or until superseded
 constexpr qpc_clock::duration TTL_STATUS{std::chrono::minutes(1)};
@@ -55,11 +44,9 @@ constexpr qpc_clock::duration TTL_STATUS{std::chrono::minutes(1)};
 Logger_Dispatcher::Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr)
 	: Task::TActiveTask<Logger_Dispatcher>(2)
 	, Logging::LogClient(log)
-	, m_sockThread()
-	, m_pubsubaddr(psubAddr)
-	, m_sock(m_iosvc)
+	, m_hub(*this, psubAddr)
 {
-	m_sockThread = std::thread([=] { socketThread(); });
+	m_hub.start();
 
 	getMsgDispatcher().start();
 }
@@ -70,12 +57,9 @@ Logger_Dispatcher::~Logger_Dispatcher()
 	try
 	{
 		LOG(LL_Debug, LC_Logger, "stop");
-		sendMsg(PubSub::Message(PUB_DEAD, TTL_LONGTIME));
 
 		getMsgDispatcher().stop();
-		m_iosvc.stop();
-
-		m_sockThread.join();
+		m_hub.stop();
 	}
 	catch (const std::exception& ex)
 	{
@@ -104,15 +88,15 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 
 			if (m_cfg.Flush_present())
 				for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
-					subscribe(PubSub::parseSubject(e));
+					m_hub.subscribe(PubSub::parseSubject(e));
 
 			if (m_cfg.NewFile_present())
 				for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
-					subscribe(PubSub::parseSubject(e));
+					m_hub.subscribe(PubSub::parseSubject(e));
 
 			if (m_cfg.FtpUpload_present())
 				for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
-					subscribe(PubSub::parseSubject(e));
+					m_hub.subscribe(PubSub::parseSubject(e));
 			else
 				m_haveSysCfg = true; // Don't bother waiting for or requesting Shared config since we wont use it
 
@@ -121,15 +105,11 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 	}
 	catch (xml_schema::parser_exception& ex)
 	{
-		LOG(Logging::LL_Warning, Logging::LC_Logger, "CONFIG ERROR: The following errors were found:\r\n" << ex.what());
+		std::stringstream err;
+		err << ex.text() << " at " << ex.line() << ":" << ex.column();
 
-		PubSub::Message err;
-		err.subject = { "Error", "Logger", "Config" };
-		err.payload = ex.text();
-		err.payload += " ";
-		err.payload += ex.what();
-
-		sendMsg(err);
+		LOG(Logging::LL_Warning, Logging::LC_Logger, "CONFIG ERROR: The following errors were found:\r\n" << err.str());
+		m_hub.sendMsg(PubSub::Message{{"Error", "Logger", "Config"}, err.str(), TTL_LONGTIME});
 	}
 }
 
@@ -161,159 +141,38 @@ void Logger_Dispatcher::configSys(const std::string& cfgStr)
 
 		LOG(Logging::LL_Warning, Logging::LC_Logger, "SHARED CONFIG ERROR: " << err.payload);
 
-		sendMsg(err);
+		m_hub.sendMsg(err);
 	}
 }
 
-void Logger_Dispatcher::socketThread()
+void Logger_Dispatcher::eventBusConnected(HubApps::HubConnectionState state)
 {
-	try
+	if (state == HubApps::HubConnectionState::HubAvailable)
 	{
-		BA::io_service::work work(m_iosvc);
-		start();
-		m_iosvc.run();
-	}
-	catch (const std::exception& ex)
-	{
-		LOG(LL_Severe, LC_Logger, ex.what());
-		throw ex;
-	}
-}
-
-void Logger_Dispatcher::start()
-{
-	std::string::size_type i = m_pubsubaddr.find(':');
-	if (i == std::string::npos)
-		connect(m_pubsubaddr, "3101");
-	else
-		connect(m_pubsubaddr.substr(0, i), m_pubsubaddr.substr(i + 1));
-}
-
-template <> void Logger_Dispatcher::processEvent<ReconnectEvt>(void)
-{
-	start();
-}
-
-void Logger_Dispatcher::connect(const std::string& address, const std::string& port)
-{
-	namespace BIP = boost::asio::ip;
-
-	std::shared_ptr<BIP::tcp::resolver> resolver = std::make_shared<BIP::tcp::resolver>(m_iosvc);
-
-	auto connectHandler = [this] (const boost::system::error_code& errorCode, const BIP::tcp::endpoint& ep)
-	{
-		if (errorCode)
-			onConnectionError("Could not connect: " + errorCode.message());
-		else
-			onConnected(ep);
-	};
-
-	auto resolveHandler = [resolver, connectHandler, this]
-		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::results_type results)
-	{
-		if (errorCode)
-			onConnectionError("Could not resolve address: " + errorCode.message());
-		else
-			boost::asio::async_connect(m_sock, results, connectHandler);
-	};
-
-	resolver->async_resolve(address, port, resolveHandler);
-}
-
-void Logger_Dispatcher::onConnected(const BA::ip::tcp::endpoint& ep)
-{
-	LOG(Logging::LL_Info, Logging::LC_PubSub, "Connected to pSub bus at " << ep);
-
-	resetPSub();
-
-	m_sock.set_option(boost::asio::socket_base::keep_alive(true));
-
-	// Subscribe to stuff
-	subscribe(SUB_CFG);
-	subscribe(SUB_SHARED_CFG);
-	subscribe(SUB_NEW_FILE);
-	subscribe(SUB_FLUSH_FILE);
-#if defined(_DEBUG) && defined(WIN32)
-	subscribe(SUB_DIE);
+		// Subscribe to stuff
+		m_hub.subscribe(SUB_CFG);
+		m_hub.subscribe(SUB_SHARED_CFG);
+		m_hub.subscribe(SUB_NEW_FILE);
+		m_hub.subscribe(SUB_FLUSH_FILE);
+#if defined(_DEBUG)
+		subscribe(SUB_DIE);
 #endif
 
-	sendMsg(PubSub::Message(PUB_ALIVE, g_version, TTL_LONGTIME));
-
-	if (!haveCfg)
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3s);
-	else
-	{
-		if (m_cfg.Flush_present())
-			for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
-				subscribe(PubSub::parseSubject(e));
-
-		if (m_cfg.NewFile_present())
-			for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
-				subscribe(PubSub::parseSubject(e));
-
-		if (m_cfg.FtpUpload_present())
-			for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
-				subscribe(PubSub::parseSubject(e));
-	}
-
-	if (m_here)
-		m_here->cancelMsg();
-	m_here = enqueueWithDelay<evHereTime>(2s, true);
-
-	m_sock.async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
-}
-
-void Logger_Dispatcher::onConnectionError(const std::string& error)
-{
-	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
-	enqueueWithDelay<ReconnectEvt>(1s);
-}
-
-void Logger_Dispatcher::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
-{
-	if (!error)
-	{
-		try
+		if (haveCfg)
 		{
-			processBuffer((char*)readBuff, bytes_transferred);
+			if (m_cfg.Flush_present())
+				for (const loggercfg::event_string_t& e : m_cfg.Flush().Event())
+					m_hub.subscribe(PubSub::parseSubject(e));
+
+			if (m_cfg.NewFile_present())
+				for (const loggercfg::event_string_t& e : m_cfg.NewFile().Event())
+					m_hub.subscribe(PubSub::parseSubject(e));
+
+			if (m_cfg.FtpUpload_present())
+				for (const loggercfg::event_string_t& e : m_cfg.FtpUpload().Event())
+					m_hub.subscribe(PubSub::parseSubject(e));
 		}
-		catch (const std::exception& ex)
-		{
-			LOG(Logging::LL_Warning, Logging::LC_PubSub, "Error " << ex.what() << " processing pSub buffer. Read buffers reset");
-			LOG(Logging::LL_Dump, Logging::LC_PubSub, readBuff);
-		}
-		m_sock.async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
 	}
-	else
-	{
-		LOG(Logging::LL_Warning, Logging::LC_PubSub, "Lost connection to pSub bus");
-
-		resetPSub();
-		if (m_here)
-		{
-			m_here->cancelMsg();
-			m_here.reset();
-		}
-		enqueueWithDelay<ReconnectEvt>(1s);
-	}
-}
-
-template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evCfgDeferred>()
-{
-	if (!haveCfg)
-		sendMsg(PubSub::Message(PUB_CFG_REQUEST, g_version));
-
-	if (!m_haveSysCfg)
-		sendMsg(PubSub::Message(PUB_SHARED_CFG_REQUEST, 0));
-
-	if (!(haveCfg && m_haveSysCfg))
-		m_cfgAliveDeferred = enqueueWithDelay<evCfgDeferred>(3s);
-
-}
-
-template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evHereTime>()
-{
-	sendMsg(PubSub::Message(PUB_HERE));
 }
 
 template <> void Logger_Dispatcher::processEvent<Logger_Dispatcher::evNewFile>()
@@ -341,7 +200,7 @@ void Logger_Dispatcher::processMsg(PubSub::Message&& m)
 	std::string str;
 	LOG(Logging::LL_Debug, Logging::LC_Logger, "Received msg " << PubSub::toString(m.subject, str));
 
-	std::unique_lock<std::recursive_mutex> s(m_dispLock);
+	std::unique_lock<std::mutex> s(m_dispLock);
 
 	if (PubSub::match(SUB_CFG, m.subject))
 		configure(m.payload);
@@ -351,7 +210,7 @@ void Logger_Dispatcher::processMsg(PubSub::Message&& m)
 		m_local->enqueue<NewfileEvt>();
 	else if (PubSub::match(SUB_FLUSH_FILE, m.subject))
 		m_local->enqueue<PSubLocal::FlushEvt>();
-#if defined(_DEBUG) && defined(WIN32)
+#if defined(_DEBUG)
 	else if (PubSub::match(SUB_DIE, m.subject))
 		SetEvent(g_exitEvent);
 #endif
