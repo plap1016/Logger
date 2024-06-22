@@ -4,7 +4,7 @@
 #include "gzstream.h"
 
 #include "Task/TTask.h"
-#include "HubApp/HubConn.h"
+#include "HubApp/HubApp.h"
 
 #include <mutex>
 #include <memory>
