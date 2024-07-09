@@ -2,7 +2,7 @@
 
 #include "Logging/Log.h"
 #include "Task/TTask.h"
-#include "PubSubLib/PubSub.h"
+#include "HubApp/HubApp.h"
 #include "configuration.hxx"
 #include "syscfg.hxx"
 
@@ -21,46 +21,31 @@
 extern HANDLE g_exitEvent;
 #endif
 
+extern std::string g_version;
+
 namespace BA = boost::asio;
 
 namespace Logging
 {
-	const uint32_t LC_Task = 0x0001;
-	const uint32_t LC_PubSub = 0x0002;
-	const uint32_t LC_TcpConn = 0x0004;
-	const uint32_t LC_Local = 0x0008;
-	const uint32_t LC_Logger = 0x0010;
+	const uint32_t LC_Task = 0x0100;
+	const uint32_t LC_Local = 0x0200;
+	const uint32_t LC_Logger = 0x0400;
 }
 
 class ConfigMsg;
 class PSubLocal;
 
-class Logger_Dispatcher
-	: public Task::TActiveTask<Logger_Dispatcher>
-	, public PubSub::TPubSubClient<Logger_Dispatcher>
-	, public Logging::LogClient
+class Logger_Dispatcher : public Task::TActiveTask<Logger_Dispatcher>, public Logging::LogClient
 {
-	friend PubSub::TPubSubClient<Logger_Dispatcher>;
+	friend HubApps::HubApp;
+	HubApps::HubApp m_hub;
+	void receiveEvent(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue<PubSub::Message&&>(std::move(msg)); }
+	void receiveUnknown(uint8_t, const std::string&) {}
+	void eventBusConnected(HubApps::HubConnectionState state);
 
-	uint8_t readBuff[1024];
+	//VEvent m_exitEvt;
 
-	std::thread m_sockThread;
-	VEvent m_exitEvt;
-	void socketThread();
-	std::string m_pubsubaddr;
-	boost::asio::io_service m_iosvc;
-	boost::asio::ip::tcp::socket m_sock;
-	void receivePSub(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue(msg); }
-	void sendBuffer(const std::string& buff)
-	{
-		boost::system::error_code error = boost::asio::error::broken_pipe;
-
-		boost::asio::write(m_sock, boost::asio::buffer(frameMsg(buff)), error);
-		if (error)
-			m_sock.close();
-	};
-
-	std::recursive_mutex m_dispLock;
+	std::mutex m_dispLock;
 	loggercfg::Logger m_cfg;
 	void configure(const std::string& cfgStr);
 	bool haveCfg = false;
@@ -71,9 +56,6 @@ class Logger_Dispatcher
 
 	VEvent m_newFileComplete;
 
-	Task::MsgDelayMsgPtr m_cfgAliveDeferred;
-	Task::MsgDelayMsgPtr m_here;
-
 	std::shared_ptr<PSubLocal> m_local;
 
 	void start();
@@ -83,26 +65,17 @@ class Logger_Dispatcher
 	//curl_off_t sftpGetRemoteFileSize(const char *i_remoteFile);
 	bool matchEvent(const loggercfg::event_string_t& ev, const std::string& payload);
 
-	void connect(const std::string& address, const std::string& port);
-	void onConnected(const BA::ip::tcp::endpoint& ep);
-	void onConnectionError(const std::string& error);
-	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
-
 public:
 	explicit Logger_Dispatcher(Logging::LogFile& log, const std::string& psubAddr = "127.0.0.1");
 	~Logger_Dispatcher();
 
-	//void start();
-	//void stop();
-
 	const loggercfg::Logger& cfg() const { return m_cfg; }
-	boost::asio::io_service& iosvc() { return m_iosvc; }
-	const std::string& pSubAddr(void) const { return m_pubsubaddr; }
+	HubApps::HubApp& hub() { return m_hub; }
+	constexpr const char* appName() const { return "Logger"; }
+	constexpr std::string& version() const { return g_version; }
 
 	void processMsg(PubSub::Message&& m);
 
-	struct evCfgDeferred;
-	struct evHereTime;
 	struct evNewFile;
 	struct evNewFileCreated;
 	struct evFlushFile;

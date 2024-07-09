@@ -11,6 +11,7 @@
 				<Option object_output=".objs/$(TARGET_NAME)" />
 				<Option type="1" />
 				<Option compiler="gcc" />
+				<Option parameters="-e" />
 				<Compiler>
 					<Add option="-g" />
 					<Add option="-fPIE" />
@@ -114,6 +115,7 @@
 			<Add library="Logging" />
 			<Add library="Task" />
 			<Add library="Misc" />
+			<Add library="HubApp" />
 			<Add library="pugixml" />
 			<Add library="xsde" />
 			<Add library="z" />

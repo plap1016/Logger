@@ -4,9 +4,8 @@
 #include "gzstream.h"
 
 #include "Task/TTask.h"
-#include "PubSubLib/PubSub.h"
+#include "HubApp/HubApp.h"
 
-#include <boost/asio.hpp>
 #include <mutex>
 #include <memory>
 #include <thread>
@@ -20,51 +19,33 @@ class NewfileEvtSync;
 
 namespace BA = boost::asio;
 
-class PSubLocal : public Task::TTask<PSubLocal>, public PubSub::TPubSubClient<PSubLocal>, public Logging::LogClient
+class PSubLocal : public Task::TTask<PSubLocal>, public Logging::LogClient
 {
-	friend PubSub::TPubSubClient<PSubLocal>;
-
-	uint8_t readBuff[1024];
 	Logger_Dispatcher& m_disp;
 
-	uint32_t m_evtCount = 0;
-	uint32_t m_evtMax = 1000000; // Sane default but should be overridden by default config anyway
-	uint32_t m_flushSec = 3600;  // As above
+	friend HubApps::HubHandler;
+	std::unique_ptr<HubApps::HubHandler> m_hub;
+	void receiveEvent(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue<PubSub::Message&&>(std::move(msg)); }
+	void receiveUnknown(uint8_t, const std::string&) {}
+	void eventBusConnected(HubApps::HubConnectionState state);
 
-	std::recursive_mutex m_lk;
-	ogzstream m_strm;
+	uint32_t m_evtCount{0};
+	uint32_t m_evtMax{1000000}; // Sane default but should be overridden by default config anyway
+	uint32_t m_flushSec{3600};  // As above
+
+	std::mutex m_lk;
+	ogzstream m_strm{};
 	std::string m_fname;
 	std::chrono::steady_clock::time_point m_start_time;
 	std::chrono::steady_clock::time_point m_time_marker;
 
-	//BA::ip::tcp::socket m_sock;
-	std::shared_ptr<boost::asio::ip::tcp::socket> m_sockptr;
-	bool m_running;
-	void receivePSub(PubSub::Message&& msg) { /*hand off to thread queue*/enqueue(msg); }
-	void sendBuffer(const std::string& buff)
-	{
-		boost::system::error_code error = BA::error::broken_pipe;
-
-		BA::write(*m_sockptr, BA::buffer(frameMsg(buff)), error);
-		if (error)
-			m_sockptr->close();
-	};
-
-	Task::MsgDelayMsgPtr m_reconectMsg;
+	bool m_running{false};
 	Task::MsgDelayMsgPtr m_flushMsg;
-
-	void connect(const std::string& address, const std::string& port);
-	void onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket);
-	void onConnectionError(const std::string& error);
-	void OnReadSome(const boost::system::error_code& error, size_t bytes_transferred);
-
-	void pSubUnknownMsg(uint8_t /* type */, const std::string& /* payload */) {}
 
 	bool initNewFile(void);
 
 public:
-	PSubLocal(Logger_Dispatcher& disp);
-	~PSubLocal();
+	explicit PSubLocal(Logger_Dispatcher& disp);
 
 	void start();
 	void stop();

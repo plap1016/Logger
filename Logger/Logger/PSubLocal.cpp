@@ -19,125 +19,42 @@ PSubLocal::PSubLocal(Logger_Dispatcher& disp)
 	: Task::TTask<PSubLocal>(disp.getMsgDispatcher())
 	, Logging::LogClient(disp)
 	, m_disp(disp)
-	, m_running(false)
+	, m_hub(disp.hub().makeHandler(*this, disp.hub().psubAddr()))
 {
 }
 
-
-PSubLocal::~PSubLocal()
-{
-}
-
-template <> void PSubLocal::processEvent<ReconnectEvt>(void)
-{
-	if (m_running)
-		start();
-}
-
+//template <> void PSubLocal::processEvent<ReconnectEvt>(void)
+//{
+//	if (m_running)
+//		start();
+//}
+//
 template <> void PSubLocal::processEvent<NewfileEvt>(void)
 {
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 	initNewFile();
 }
 
 template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
 {
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 	initNewFile();
 	m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
 }
 
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
 {
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 	m_strm.flush();
 }
 
-void PSubLocal::OnReadSome(const boost::system::error_code& error, size_t bytes_transferred)
+void PSubLocal::eventBusConnected(HubApps::HubConnectionState state)
 {
-	if (!error)
+	if (state == HubApps::HubConnectionState::HubAvailable)
 	{
-		try
-		{
-			processBuffer((char*)readBuff, bytes_transferred);
-		}
-		catch (const std::exception& ex)
-		{
-			LOG(LL_Warning, LC_Local, "Error processing pSub buffer. Read buffers reset: " << ex.what());
-			LOG(LL_Dump, LC_Local, readBuff);
-		}
-		m_sockptr->async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
+		initNewFile();
+		m_hub->subscribe({ "*" });
 	}
-	else
-	{
-		LOG(LL_Warning, LC_Local, "Lost local connection to pSub bus");
-
-		resetPSub();
-		if (error != BA::error::operation_aborted)
-		{
-			if (m_reconectMsg)
-				m_reconectMsg->cancelMsg();
-			m_reconectMsg = enqueueWithDelay<ReconnectEvt>(1s);
-		}
-	}
-}
-
-void PSubLocal::connect(const std::string& address, const std::string& port)
-{
-	namespace BIP = boost::asio::ip;
-
-	std::shared_ptr<BIP::tcp::socket> socket = std::make_shared<BIP::tcp::socket>(m_disp.iosvc());
-	std::shared_ptr<BIP::tcp::resolver> resolver = std::make_shared<BIP::tcp::resolver>(m_disp.iosvc());
-	BIP::tcp::resolver::query query(address, port);
-
-	socket->open(boost::asio::ip::tcp::v4());
-	socket->set_option(boost::asio::socket_base::keep_alive(true));
-
-	auto connectHandler = [socket, this]
-		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
-	{
-		if (errorCode)
-			onConnectionError("Could not connect: " + errorCode.message());
-		else if (it == BIP::tcp::resolver::iterator())
-			onConnectionError("Could not connect!");
-		else
-			onConnected(std::move(socket));
-	};
-
-	auto resolveHandler = [socket, resolver, connectHandler, this]
-		(const boost::system::error_code& errorCode, const BIP::tcp::resolver::iterator& it)
-	{
-		if (errorCode)
-			onConnectionError("Could not resolve address: " + errorCode.message());
-		else
-			boost::asio::async_connect(*socket, it, BIP::tcp::resolver::iterator(), connectHandler);
-	};
-
-	resolver->async_resolve(query, resolveHandler);
-}
-
-void PSubLocal::onConnected(const std::shared_ptr<BA::ip::tcp::socket>& socket)
-{
-	LOG(LL_Info, LC_Local, "Connected to pSub bus");
-
-	m_sockptr = socket;
-
-	initNewFile();
-	subscribe({ "*" });
-
-	m_sockptr->async_read_some(BA::buffer(readBuff, 1024), [&](const boost::system::error_code& error, size_t bytes){ OnReadSome(error, bytes); });
-}
-
-void PSubLocal::onConnectionError(const std::string& error)
-{
-	LOG(Logging::LL_Warning, Logging::LC_PubSub, error << " Reconnect in 1 second");
-	if (m_flushMsg)
-	{
-		m_flushMsg->cancelMsg();
-		m_flushMsg.reset();
-	}
-
-	enqueueWithDelay<ReconnectEvt>(1s);
 }
 
 bool PSubLocal::initNewFile(void)
@@ -200,7 +117,7 @@ bool PSubLocal::initNewFile(void)
 void PSubLocal::start()
 {
 	LOG(LL_Debug, LC_Local, "start");
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 
 	m_running = true;
 
@@ -208,26 +125,17 @@ void PSubLocal::start()
 	m_evtMax = m_disp.cfg().NewFile_present() ? m_disp.cfg().NewFile().Count() : loggercfg::NewFile::Count_default_value();
 	m_flushSec = m_disp.cfg().Flush_present() ? m_disp.cfg().Flush().IntervalS() : loggercfg::Flush::IntervalS_default_value();
 
-	if (!m_sockptr)
-		m_sockptr.reset(new BA::ip::tcp::socket(m_disp.iosvc()));
-	else
-		m_sockptr->close();
-
-	std::string::size_type i = m_disp.pSubAddr().find(':');
-	if (i == std::string::npos)
-		connect(m_disp.pSubAddr(), "3101");
-	else
-		connect(m_disp.pSubAddr().substr(0, i), m_disp.pSubAddr().substr(i + 1));
+	//m_hub->stop();
+	m_hub->initSock();
 }
 
 void PSubLocal::stop()
 {
 	LOG(LL_Debug, LC_Local, "stop");
 
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 
-	//if (m_running)
-	//	m_sock.close();
+	m_hub->stop();
 
 	if (m_strm.good())
 		m_strm.close();
@@ -245,7 +153,7 @@ void PSubLocal::processMsg(PubSub::Message&& m)
 {
 	std::string str;
 	LOG(LL_Debug, LC_Local, "Received msg " << PubSub::toString(m.subject, str));
-	std::unique_lock<std::recursive_mutex> s(m_lk);
+	std::unique_lock<std::mutex> s(m_lk);
 
 	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
 	std::chrono::milliseconds tdiff1 = std::chrono::duration_cast<std::chrono::milliseconds>(m_time_marker - m_start_time);
