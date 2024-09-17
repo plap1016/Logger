@@ -81,7 +81,7 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 		if (!haveCfg)
 		{
 			d.parse(cfgstrm);
-			s.post()->_copy(m_cfg);
+			std::unique_ptr<loggercfg::Logger>{s.post()}->_copy(m_cfg);
 
 			m_local.reset(new PSubLocal(*this));
 			m_local->start();
