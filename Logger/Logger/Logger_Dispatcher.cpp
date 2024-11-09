@@ -7,7 +7,7 @@
 #include "pugixml/pugixml.hpp"
 
 #include <stdint.h>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 
 #include <string>
 #include <sstream>

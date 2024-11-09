@@ -123,7 +123,6 @@
 			<Add library="dl" />
 			<Add library="ssh2" />
 			<Add library="boost_system" />
-			<Add library="boost_filesystem" />
 			<Add directory="$(WORKSPACEDIR)/$(TARGET_NAME)" />
 		</Linker>
 		<Unit filename="Daemon.cpp" />
