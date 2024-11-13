@@ -7,7 +7,6 @@
 #include "pugixml/pugixml.hpp"
 
 #include <stdint.h>
-#include <filesystem>
 
 #include <string>
 #include <sstream>
