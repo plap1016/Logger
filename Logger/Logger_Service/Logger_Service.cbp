@@ -107,7 +107,7 @@
 					<Add option="-g" />
 				</Compiler>
 				<Linker>
-					<Add directory="$(#xsde.LIB_ARM)" />
+					<Add directory="$(#xsde.LIB_ARM64)" />
 				</Linker>
 			</Target>
 			<Target title="Pi_Release">
@@ -122,12 +122,12 @@
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
-					<Add directory="$(#xsde.LIB_ARM)" />
+					<Add directory="$(#xsde.LIB_ARM64)" />
 				</Linker>
 			</Target>
 		</Build>
 		<VirtualTargets>
-			<Add alias="All" targets="Debug;Release;ARM_Debug;ARM_Release;IVU_Debug;IVU_Release;" />
+			<Add alias="All" targets="Debug;Release;ARM_Debug;ARM_Release;IVU_Debug;IVU_Release;Pi_Debug;Pi_Release;" />
 		</VirtualTargets>
 		<Compiler>
 			<Add option="-Wall" />
