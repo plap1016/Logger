@@ -30,7 +30,6 @@
 					<Add option="-fPIE" />
 				</Compiler>
 				<Linker>
-					<Add option="-s" />
 					<Add directory="$(#xsde.LIB)" />
 				</Linker>
 			</Target>
