@@ -140,7 +140,7 @@
 			<Add directory="$(#xsde.INCLUDE)" />
 		</Compiler>
 		<Linker>
-			<Add library="Logger" />
+			<Add library="logger" />
 			<Add library="pSubClientLib" />
 			<Add library="Logging" />
 			<Add library="Task" />
