@@ -5,6 +5,7 @@
 
 #include "Task/TTask.h"
 #include "HubApp/HubApp.h"
+#include "configuration.hxx"
 
 #include <mutex>
 #include <memory>
@@ -21,7 +22,9 @@ namespace BA = boost::asio;
 
 class PSubLocal : public Task::TTask<PSubLocal>, public Logging::LogClient
 {
-	Logger_Dispatcher& m_disp;
+	//Logger_Dispatcher& m_disp;
+	loggercfg::Logger m_cfg;
+	std::function<void()>& m_onNewFile;
 
 	friend HubApps::HubHandler;
 	std::unique_ptr<HubApps::HubHandler> m_hub;
@@ -45,7 +48,7 @@ class PSubLocal : public Task::TTask<PSubLocal>, public Logging::LogClient
 	bool initNewFile(void);
 
 public:
-	explicit PSubLocal(Logger_Dispatcher& disp);
+	explicit PSubLocal(Task::TaskMsgDispatcher&, Logging::LogFile&, HubApps::HubCore&, const loggercfg::Logger&, std::function<void()>);
 
 	void start();
 	void stop();

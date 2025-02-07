@@ -17,7 +17,6 @@
 namespace Logging
 {
 	template <> const char* getLCStr<LC_Task     >() { return "Task    "; }
-	template <> const char* getLCStr<LC_Local    >() { return "Local   "; }
 	template <> const char* getLCStr<LC_Logger   >() { return "Logger  "; }
 }
 
@@ -82,7 +81,7 @@ void Logger_Dispatcher::configure(const std::string& cfgStr)
 			d.parse(cfgstrm);
 			std::unique_ptr<loggercfg::Logger>{s.post()}->_copy(m_cfg);
 
-			m_local.reset(new PSubLocal(*this));
+			m_local.reset(new PSubLocal(getMsgDispatcher(), m_log, m_hub, m_cfg, [this](){ enqueue<evNewFileCreated>(); } ));
 			m_local->start();
 
 			if (m_cfg.Flush_present())

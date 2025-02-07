@@ -1,5 +1,4 @@
 #include "PSubLocal.h"
-#include "Logger_Dispatcher.h"
 #include "configuration.hxx"
 
 #include <stdint.h>
@@ -11,22 +10,23 @@
 
 namespace BA = boost::asio;
 
-using namespace Logging;
-
-PSubLocal::PSubLocal(Logger_Dispatcher& disp)
-	: Task::TTask<PSubLocal>(disp.getMsgDispatcher())
-	, Logging::LogClient(disp)
-	, m_disp(disp)
-	, m_hub(disp.hub().makeHandler(*this, disp.hub().psubAddr()))
+namespace Logging
 {
+	const uint32_t LC_Local = 0x0200;
+	template <> const char* getLCStr<LC_Local    >() { return "Local   "; }
 }
 
-//template <> void PSubLocal::processEvent<ReconnectEvt>(void)
-//{
-//	if (m_running)
-//		start();
-//}
-//
+using namespace Logging;
+
+PSubLocal::PSubLocal(Task::TaskMsgDispatcher& disp, Logging::LogFile& log, HubApps::HubCore& hub, const loggercfg::Logger& cfg, std::function<void()> onNewFile)
+	: Task::TTask<PSubLocal>(disp)
+	, Logging::LogClient(log)
+	, m_onNewFile(onNewFile)
+	, m_hub(hub.makeHandler(*this, hub.psubAddr()))
+{
+	cfg._copy(m_cfg);
+}
+
 template <> void PSubLocal::processEvent<NewfileEvt>(void)
 {
 	std::unique_lock<std::mutex> s(m_lk);
@@ -37,7 +37,8 @@ template <> void PSubLocal::processEvent<NewfileEvtSync>(void)
 {
 	std::unique_lock<std::mutex> s(m_lk);
 	initNewFile();
-	m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
+	m_onNewFile();
+	//m_disp.enqueue<Logger_Dispatcher::evNewFileCreated>();
 }
 
 template <> void PSubLocal::processEvent<PSubLocal::FlushEvt>(void)
@@ -61,9 +62,9 @@ bool PSubLocal::initNewFile(void)
 		m_strm.close();
 
 	uint32_t fcnt = 0;
-	BF::path p(m_disp.cfg().LogPath());
+	BF::path p(m_cfg.LogPath());
 	std::set<BF::path> dir;
-	std::string fnroot = m_disp.cfg().FileNameRoot();
+	std::string fnroot = m_cfg.FileNameRoot();
 	for (BF::directory_entry d : BF::directory_iterator(p))
 	{
 		std::string droot = d.path().filename().string().substr(0, fnroot.size());
@@ -74,9 +75,9 @@ bool PSubLocal::initNewFile(void)
 		}
 	}
 
-	if (fcnt >= m_disp.cfg().MaxFileCount())
+	if (fcnt >= m_cfg.MaxFileCount())
 	{
-		for (uint32_t x = m_disp.cfg().MaxFileCount(); x <= fcnt; ++x)
+		for (uint32_t x = m_cfg.MaxFileCount(); x <= fcnt; ++x)
 		{
 			BF::remove(*dir.begin());
 			dir.erase(dir.begin());
@@ -95,7 +96,7 @@ bool PSubLocal::initNewFile(void)
 #endif
 
 	std::stringstream fname;
-	fname << m_disp.cfg().LogPath() << "/" << m_disp.cfg().FileNameRoot() << "_"
+	fname << m_cfg.LogPath() << "/" << m_cfg.FileNameRoot() << "_"
 		<< std::put_time(&t, "%Y%m%d%H%M%S") << "." << std::chrono::duration_cast<std::chrono::milliseconds>(mk - nowsec).count()
 		<< ".rec.gz";
 
@@ -120,8 +121,8 @@ void PSubLocal::start()
 	m_running = true;
 
 	// Store local copies of flush and new file counters
-	m_evtMax = m_disp.cfg().NewFile_present() ? m_disp.cfg().NewFile().Count() : loggercfg::NewFile::Count_default_value();
-	m_flushSec = m_disp.cfg().Flush_present() ? m_disp.cfg().Flush().IntervalS() : loggercfg::Flush::IntervalS_default_value();
+	m_evtMax = m_cfg.NewFile_present() ? m_cfg.NewFile().Count() : loggercfg::NewFile::Count_default_value();
+	m_flushSec = m_cfg.Flush_present() ? m_cfg.Flush().IntervalS() : loggercfg::Flush::IntervalS_default_value();
 
 	//m_hub->stop();
 	m_hub->initSock();

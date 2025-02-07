@@ -28,7 +28,6 @@ namespace BA = boost::asio;
 namespace Logging
 {
 	const uint32_t LC_Task = 0x0100;
-	const uint32_t LC_Local = 0x0200;
 	const uint32_t LC_Logger = 0x0400;
 }
 
